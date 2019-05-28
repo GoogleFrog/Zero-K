@@ -338,11 +338,8 @@ upgrades = {
 				local weapons = unitDef.weapondefs or {}
 				for i,v in pairs(weapons) do
 					if v.customparams.idstring == "commweapon_lightninggun" then
-						for armorname, dmg in pairs(v.damage) do
-							v.damage[armorname] = dmg * 1.25
-						end
-						v.customparams["extra_damage_mult"] = 0.32	-- same real damage
-						v.paralyzetime = 3
+						v.customparams.extra_damage_mult = v.customparams.extra_damage_mult * 1.25
+						v.paralyzetime = v.paralyzetime + 2
 					end
 				end
 			end,	
@@ -452,14 +449,9 @@ upgrades = {
 	},
 	module_autorepair = {
 		name = "Autorepair System",
-		description = "Self-repairs 20 HP/s when out of combat for 10 seconds",
+		description = "Self-repairs 10 HP/s",
 		func = function(unitDef)
-				-- First module replaces the base 5 hp/s because that occurs after a minute
-				if (not unitDef.idleautoheal) or unitDef.idleautoheal == 5 then
-					unitDef.idleautoheal = 0
-				end
-				unitDef.idleautoheal = unitDef.idleautoheal + 20
-				unitDef.idletime = 300
+				unitDef.autoheal = (unitDef.autoheal or 0) + 10
 			end,
 	},
 	module_companion_drone = {
@@ -482,9 +474,15 @@ upgrades = {
 		name = "Damage Booster",
 		description = "Increases damage of all weapons by 10%",
 		func = function(unitDef)
-				local weapons = unitDef.weapondefs or {}
-				for i,v in pairs(weapons) do
-					v.customparams.damagemod = v.customparams.damagemod + 0.1
+				if unitDef.customparams.dynamic_comm then
+					-- Weapondefs are static
+					unitDef.customparams.damagemod = (unitDef.customparams.damagemod or 0) + 1
+				else
+					-- Weapondefs stored in unitdef
+					local weapons = unitDef.weapondefs or {}
+					for i,v in pairs(weapons) do
+						v.customparams.damagemod = (v.customparams.damagemod or 0) + 0.1
+					end
 				end
 			end,	
 	},
@@ -531,7 +529,12 @@ upgrades = {
 		description = "Basic radar system with 1800 range",
 		func = function(unitDef)
 				unitDef.radardistance = (unitDef.radardistance or 0)
-				if unitDef.radardistance < 1800 then unitDef.radardistance = 1800 end
+				if unitDef.radardistance < 1800 then 
+					unitDef.radardistance = 1800
+				end
+				if (not unitDef.radaremitheight) or unitDef.radaremitheight < 100 then 
+					unitDef.radaremitheight = 24
+				end
 			end,
 	},
 	module_heavy_armor = {
@@ -570,7 +573,11 @@ upgrades = {
 		order = 5,
 		description = "Generates a small bubble shield",
 		func = function(unitDef)
-				ApplyWeapon(unitDef, "commweapon_personal_shield", 4)
+				if unitDef.customparams.dynamic_comm then
+					DynamicApplyWeapon(unitDef, "commweapon_personal_shield", #unitDef.weapons + 1)
+				else
+					ApplyWeapon(unitDef, "commweapon_personal_shield", 4)
+				end
 			end,
 	},
 	
@@ -582,13 +589,30 @@ upgrades = {
 			end,
 	},
 	
+	module_jumpjet = {
+		name = "Jumpjet",
+		description = "Allows the commander to jump",
+		func = function(unitDef)
+				unitDef.customparams.canjump            = 1
+				unitDef.customparams.jump_range         = 400
+				unitDef.customparams.jump_speed         = 6
+				unitDef.customparams.jump_reload        = 20
+				unitDef.customparams.jump_from_midair   = 1
+			end,
+	},
+	
 	module_areashield = {
 		name = "Area Shield",
 		order = 6,
 		description = "A bubble shield that protects surrounding units within 350 m",
 		func = function(unitDef)
 				--ApplyWeapon(unitDef, "commweapon_areashield", 2)
-				ReplaceWeapon(unitDef, "commweapon_personal_shield", "commweapon_areashield")
+				
+				if unitDef.customparams.dynamic_comm then
+					DynamicApplyWeapon(unitDef, "commweapon_areashield", #unitDef.weapons) -- not +1 so as to replace personal
+				else
+					ReplaceWeapon(unitDef, "commweapon_personal_shield", "commweapon_areashield")
+				end
 
 				unitDef.customparams.lups_unit_fxs = unitDef.customparams.lups_unit_fxs or {}
 				table.insert(unitDef.customparams.lups_unit_fxs, "commAreaShield")
@@ -793,13 +817,26 @@ decorations = {
 				unitDef.buildpic = "skin_support_zebra.png"
 			end,
 	},
-	skin_bombard_steel = {
+	skin_assault_steel = {
 		func = function(unitDef)
 				unitDef.customparams.altskin = [[unittextures/benzcom_1_steel.dds]]
-				unitDef.buildpic = "skin_bombard_steel.png"
+				unitDef.buildpic = "skin_assault_steel.png"
 			end,
 	},
-	
+	skin_strike_renegade={
+		func = function(unitDef)
+			unitDef.customparams.altskin = [[unittextures/strikecom_renegade.dds]]
+			unitDef.customparams.altskin2 = [[unittextures/strikecom_renegade_2.dds]]
+			unitDef.buildpic = "skin_strike_renegade.png"
+		end
+	},
+	skin_strike_chitin={
+		func = function(unitDef)
+			unitDef.customparams.altskin = [[unittextures/strikecom_chitin.dds]]
+			unitDef.customparams.altskin2 = [[unittextures/strikecom_chitin_2.dds]]
+			unitDef.buildpic = "skin_strike_chitin.png"
+		end
+	},
 	shield_red = {
 		func = function(unitDef)
 				unitDef.customparams.lups_unit_fxs = unitDef.customparams.lups_unit_fxs or {}

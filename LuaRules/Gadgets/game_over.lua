@@ -23,10 +23,8 @@ end
 --	its active players have units left.
 --------------------------------------------------------------------------------
 
---if Spring.GetModOption("zkmode",false,nil) == nil then
---	Spring.Echo("game_message: <Game Over> Testing mode. Gadget removed.")
---	return
---end
+local isScriptMission = VFS.FileExists("mission.lua")
+
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
 local spGetTeamInfo       = Spring.GetTeamInfo
@@ -35,28 +33,34 @@ local spGetTeamUnits      = Spring.GetTeamUnits
 local spDestroyUnit       = Spring.DestroyUnit
 local spGetAllUnits       = Spring.GetAllUnits
 local spGetAllyTeamList   = Spring.GetAllyTeamList
-local spGetPlayerInfo	  = Spring.GetPlayerInfo
-local spGetPlayerList	  = Spring.GetPlayerList
+local spGetPlayerInfo     = Spring.GetPlayerInfo
+local spGetPlayerList     = Spring.GetPlayerList
 local spAreTeamsAllied    = Spring.AreTeamsAllied
 local spGetUnitTeam       = Spring.GetUnitTeam
 local spGetUnitDefID      = Spring.GetUnitDefID
 local spGetUnitIsStunned  = Spring.GetUnitIsStunned
 local spGetUnitHealth     = Spring.GetUnitHealth
 local spGetUnitAllyTeam   = Spring.GetUnitAllyTeam
-local spTransferUnit	  = Spring.TransferUnit
+local spTransferUnit      = Spring.TransferUnit
 local spGetGameRulesParam = Spring.GetGameRulesParam
-local spKillTeam	      = Spring.KillTeam
-local spGameOver	      = Spring.GameOver
+local spKillTeam          = Spring.KillTeam
+local spGameOver          = Spring.GameOver
 local spEcho              = Spring.Echo
 
 local COMM_VALUE = UnitDefNames.armcom1.metalCost or 1200
 local ECON_SUPREMACY_MULT = 25
+local MISSION_PLAYER_ALLY_TEAM_ID = 0
+
+local SPARE_PLANETWARS_UNITS = false
+local SPARE_REGULAR_UNITS = false
+
+local DEBUG_MSG = false
 
 --------------------------------------------------------------------------------
 -- vars
 --------------------------------------------------------------------------------
 local gaiaTeamID = Spring.GetGaiaTeamID()
-local gaiaAllyTeamID = select(6, Spring.GetTeamInfo(gaiaTeamID))
+local gaiaAllyTeamID = select(6, Spring.GetTeamInfo(gaiaTeamID, false))
 local chickenAllyTeamID
 
 local aliveCount = {}
@@ -64,45 +68,113 @@ local aliveValue = {}
 local destroyedAlliances = {}
 local allianceToReveal
 
-local finishedUnits = {}	-- this stores a list of all units that have ever been completed, so it can distinguish between incomplete and partly reclaimed units
+local finishedUnits = {} -- this stores a list of all units that have ever been completed, so it can distinguish between incomplete and partly reclaimed units
 local toDestroy = {}
+local alliancesToDestroy
 
 local modOptions = Spring.GetModOptions() or {}
-local destroy_type = modOptions.defeatmode or 'destroy'
 local commends = tobool(modOptions.commends)
 local noElo = tobool(modOptions.noelo)
+local campaignBattleID = Spring.GetModOptions().singleplayercampaignbattleid and true
+local planetIndex = Spring.GetModOptions().singleplayercampaignbattleid
+planetIndex = planetIndex and tonumber(planetIndex)
 
 local revealed = false
 local gameover = false
+local gameOverSent = false
+
+local inactiveWinAllyTeam = false
 
 local nilUnitDef = {id=-1}
 local function GetUnitDefIdByName(defName)
   return (UnitDefNames[defName] or nilUnitDef).id
 end
 
-local doesNotCountList = {
-	[GetUnitDefIdByName("armflea")] = true,
-	[GetUnitDefIdByName("corroach")] = true,
-	[GetUnitDefIdByName("armtick")] = true,
-	[GetUnitDefIdByName("spherepole")] = true,
-	[GetUnitDefIdByName("terraunit")] = true,
-}
+local doesNotCountList 
+if campaignBattleID then
+	doesNotCountList = {
+		[GetUnitDefIdByName("terraunit")] = true,
+	}
+else
+	doesNotCountList = {
+		[GetUnitDefIdByName("spiderscout")] = true,
+		[GetUnitDefIdByName("shieldbomb")] = true,
+		[GetUnitDefIdByName("cloakbomb")] = true,
+		[GetUnitDefIdByName("amphbomb")] = true,
+		[GetUnitDefIdByName("gunshipbomb")] = true,
+		[GetUnitDefIdByName("terraunit")] = true,
+	}
 
--- auto detection of doesnotcount units
-for name, ud in pairs(UnitDefs) do
-	if (ud.customParams.dontcount) then
-		doesNotCountList[ud.id] = true
-	elseif (ud.isFeature) then
-		doesNotCountList[ud.id] = true
-	elseif (not ud.canAttack) and (not ud.speed) and (not ud.isFactory) then
-		doesNotCountList[ud.id] = true
+	-- auto detection of doesnotcount units
+	for name, ud in pairs(UnitDefs) do
+		if (ud.customParams.dontcount) then
+			doesNotCountList[ud.id] = true
+		elseif (ud.isFeature) then
+			doesNotCountList[ud.id] = true
+		elseif (not ud.canAttack) and (not ud.speed) and (not ud.isFactory) then
+			doesNotCountList[ud.id] = true
+		end
 	end
 end
 
 local commsAlive = {}
 local allyTeams = spGetAllyTeamList()
-for i=1,#allyTeams do
+for i = 1, #allyTeams do
 	commsAlive[allyTeams[i]] = {}
+end
+
+local aiTeamResign = not (isScriptMission or campaignBattleID or (Spring.GetModOptions().disableAiTeamResign == 1))
+
+local vitalConstructorAllyTeam = {}
+local vitalAlive = {}
+for i = 1, #allyTeams do
+	local allyTeamID = allyTeams[i]
+	vitalAlive[allyTeamID] = {}
+	if aiTeamResign then
+		local teamList = Spring.GetTeamList(allyTeamID)
+		vitalConstructorAllyTeam[allyTeamID] = true
+		for j = 1, #teamList do
+			local isAiTeam = select(4, Spring.GetTeamInfo(teamList[j], false))
+			if not isAiTeam then
+				vitalConstructorAllyTeam[allyTeamID] = false
+				break
+			end
+		end
+	end
+end
+
+--------------------------------------------------------------------------------
+-- Mission handling
+--------------------------------------------------------------------------------
+local isMission = (Spring.GetModOptions().singleplayercampaignbattleid and true) or false
+
+local PLAYER_ALLY_TEAM_ID = 0
+local PLAYER_TEAM_ID = 0
+local function KillTeam(teamID)
+	if isMission then
+		if teamID == PLAYER_TEAM_ID then
+			GG.MissionGameOver(false)
+		end
+	else
+		spKillTeam(teamID)
+	end
+end
+
+local function GameOver(winningAllyTeamID)
+	if DEBUG_MSG then
+		Spring.Echo("GameOver", winningAllyTeamID)
+	end
+	if isMission then
+		if winningAllyTeamID == PLAYER_ALLY_TEAM_ID then
+			GG.MissionGameOver(true)
+		end
+	else
+		spGameOver({winningAllyTeamID})
+	end
+end
+
+function GG.IsAllyTeamAlive(allyTeamID)
+	return not destroyedAlliances[allyTeamID]
 end
 
 --------------------------------------------------------------------------------
@@ -143,10 +215,11 @@ local function CountAllianceValue(allianceID)
 end
 
 local function HasNoComms(allianceID)
-	for unitID in pairs(commsAlive[allianceID]) do
-		return false
-	end
-	return true
+	return not next(commsAlive[allianceID])
+end
+
+local function HasNoVitalUnits(allianceID)
+	return not next(vitalAlive[allianceID])
 end
 
 local function EchoUIMessage(message)
@@ -158,8 +231,23 @@ local function UnitWithinBounds(unitID)
 	return (x > -500) and (x < Game.mapSizeX + 500) and (y > -1000) and (z > -500) and (z < Game.mapSizeZ + 500)
 end
 
+local function Draw() -- declares a draw
+	if gameOverSent then
+		return
+	end
+	EchoUIMessage("The game ended in a draw!")
+	GameOver(gaiaAllyTeamID) -- exit uses {} so use Gaia for draw to differentiate
+	gameOverSent = true
+end
+
 -- if only one allyteam left, declare it the victor
 local function CheckForVictory()
+	if DEBUG_MSG then
+		Spring.Echo("CheckForVictory")
+	end
+	if Spring.IsCheatingEnabled() or gameOverSent then
+		return
+	end
 	local allylist = spGetAllyTeamList()
 	local count = 0
 	local lastAllyTeam
@@ -171,64 +259,118 @@ local function CheckForVictory()
 		end
 	end
 	if count < 2 then
-		EchoUIMessage(( (lastAllyTeam and ("Alliance " .. lastAllyTeam)) or "Nobody") .. " wins!")
-		spGameOver({lastAllyTeam})
+		if ((not lastAllyTeam) or (count == 0)) then
+			Draw()
+		else
+			if not (isMission or isScriptMission) then
+				local name = Spring.GetGameRulesParam("allyteam_long_name_" .. lastAllyTeam)
+				EchoUIMessage(name .. " wins!")
+			end
+			GameOver(lastAllyTeam)
+			gameOverSent = true
+		end
 	end
 end
 
 local function RevealAllianceUnits(allianceID)
+	if DEBUG_MSG then
+		Spring.Echo("RevealAllianceUnits", allianceID)
+	end
 	allianceToReveal = allianceID
 	local teamList = spGetTeamList(allianceID)
 	for i=1,#teamList do
 		local t = teamList[i]
 		local teamUnits = spGetTeamUnits(t) 
 		for j=1,#teamUnits do
-			local u = teamUnits[j]
+			local unitID = teamUnits[j]
 			-- purge extra-map units
-			if not UnitWithinBounds(u) then
-				Spring.DestroyUnit(u)
+			if not UnitWithinBounds(unitID) then
+				Spring.DestroyUnit(unitID)
 			else
-				Spring.SetUnitAlwaysVisible(u, true)
+				Spring.SetUnitAlwaysVisible(unitID, true)
 			end
 		end
 	end
 end
 
 -- purge the alliance! for the horde!
-local function DestroyAlliance(allianceID)
+local function DestroyAlliance(allianceID, delayLossToNextGameFrame)
+	if DEBUG_MSG then
+		Spring.Echo("DestroyAlliance", allianceID, delayLossToNextGameFrame)
+	end
+	if delayLossToNextGameFrame then
+		alliancesToDestroy = alliancesToDestroy or {}
+		alliancesToDestroy[#alliancesToDestroy + 1] = allianceID
+		return
+	end
 	if not destroyedAlliances[allianceID] then
 		destroyedAlliances[allianceID] = true
 		local teamList = spGetTeamList(allianceID)
-		if teamList == nil then return end	-- empty allyteam, don't bother
+		if teamList == nil or (#teamList == 0) then 
+			return -- empty allyteam, don't bother
+		end
 		
-		if Spring.IsCheatingEnabled() or destroy_type == 'debug' then
+		local explodeUnits = true
+		if GG.GalaxyCampaignHandler then
+			local defeatConfig = GG.GalaxyCampaignHandler.GetDefeatConfig(allianceID)
+			if defeatConfig then
+				if defeatConfig.allyTeamLossObjectiveID then
+					local objParameter = "objectiveSuccess_" .. defeatConfig.allyTeamLossObjectiveID
+					Spring.SetGameRulesParam(objParameter, (Spring.GetGameRulesParam(objParameter) or 0) + ((allianceID == MISSION_PLAYER_ALLY_TEAM_ID and 0) or 1))
+				end
+				if defeatConfig.defeatOtherAllyTeamsOnLoss then
+					local otherTeams = defeatConfig.defeatOtherAllyTeamsOnLoss
+					for i = 1, #otherTeams do
+						DestroyAlliance(otherTeams[i])
+					end
+				end
+				if defeatConfig.doNotExplodeOnLoss then
+					explodeUnits = false
+				end
+			end
+		end
+		
+		if Spring.IsCheatingEnabled() then
 			EchoUIMessage("Game Over: DEBUG")
 			EchoUIMessage("Game Over: Allyteam " .. allianceID .. " has met the game over conditions.")
 			EchoUIMessage("Game Over: If this is true, then please resign.")
-			return	-- don't perform victory check
-		elseif destroy_type == 'destroy' then	-- kaboom
-			EchoUIMessage("Alliance " .. allianceID .. " has been destroyed!")
-			for i=1,#teamList do
+			return -- don't perform victory check
+		else -- kaboom
+			if not (isMission or isScriptMission) then
+				local name = Spring.GetGameRulesParam("allyteam_long_name_" .. allianceID)
+				EchoUIMessage(name .. " has been destroyed!")
+			end
+
+			local frame = Spring.GetGameFrame() + 50
+			local function QueueDestruction(unitID)
+				local destroyFrame = frame - math.ceil((math.random()*7)^2)
+				toDestroy[destroyFrame] = toDestroy[destroyFrame] or {}
+				toDestroy[destroyFrame][unitID] = true
+			end
+
+			for i = 1, #teamList do
 				local t = teamList[i]
-				local teamUnits = spGetTeamUnits(t) 
-				for j=1,#teamUnits do
-					local u = teamUnits[j]
-					local pwUnits = (GG.PlanetWars or {}).unitsByID
-					if pwUnits and pwUnits[u] then
-						GG.allowTransfer = true
-						spTransferUnit(u, gaiaTeamID, true)		-- don't blow up PW buildings
-						GG.allowTransfer = false
-					else
-						toDestroy[u] = true
+				
+				if explodeUnits then
+					local teamUnits = spGetTeamUnits(t) 
+					for j = 1, #teamUnits do
+						local unitID = teamUnits[j]
+						local pwUnits = (GG.PlanetWars or {}).unitsByID
+						if pwUnits and pwUnits[unitID] then
+							if SPARE_PLANETWARS_UNITS then
+								GG.allowTransfer = true
+								spTransferUnit(unitID, gaiaTeamID, true)		-- don't blow up PW buildings
+								GG.allowTransfer = false
+							else
+								QueueDestruction(unitID)
+							end
+						elseif not SPARE_REGULAR_UNITS then
+							QueueDestruction(unitID)
+						end
 					end
 				end
 				Spring.SetTeamRulesParam(t, "isDead", 1, {public = true})
-				spKillTeam(t)
-			end
-		elseif destroy_type == 'losecontrol' then	-- no orders can be issued to team
-			EchoUIMessage("Alliance " .. allianceID .. " has been defeated!")
-			for i=1,#teamList do
-				spKillTeam(teamList[i])
+				KillTeam(t)
 			end
 		end
 	end
@@ -236,34 +378,118 @@ local function DestroyAlliance(allianceID)
 end
 GG.DestroyAlliance = DestroyAlliance
 
-local function AddAllianceUnit(u, ud, teamID)
-	local _, _, _, _, _, allianceID = spGetTeamInfo(teamID)
-	aliveCount[teamID] = aliveCount[teamID] + 1
-	
-	aliveValue[teamID] = aliveValue[teamID] + UnitDefs[ud].metalCost
-	
-	--Spring.Echo("added alliance=" .. teamID, 'count='..aliveCount[allianceID])
-	if UnitDefs[ud].customParams.commtype then
-		commsAlive[allianceID][u] = true
-	end	
+local function CauseVictory(allyTeamID)
+	if DEBUG_MSG then
+		Spring.Echo("CauseVictory", allyTeamID)
+	end
+	local allylist = spGetAllyTeamList()
+	local count = 0
+	for _,a in pairs(allylist) do
+		if a ~= allyTeamID and a ~= gaiaAllyTeamID then
+			DestroyAlliance(a)
+		end
+	end
+	--GameOver(lastAllyTeam)
+end
+GG.CauseVictory = CauseVictory
+
+local function CanAddCommander()
+	if not isScriptMission then
+		return true
+	end
+	local frame = Spring.GetGameFrame()
+	return frame < 10
 end
 
-local function RemoveAllianceUnit(u, ud, teamID)
-	local _, _, _, _, _, allianceID = spGetTeamInfo(teamID)
+local function AddAllianceUnit(unitID, unitDefID, teamID)
+	if DEBUG_MSG then
+		Spring.Echo("AddAllianceUnit", unitID, unitDefID, teamID)
+	end
+	local _, _, _, _, _, allianceID = spGetTeamInfo(teamID, false)
+	aliveCount[teamID] = aliveCount[teamID] + 1
+	
+	aliveValue[teamID] = aliveValue[teamID] + UnitDefs[unitDefID].metalCost
+
+	if CanAddCommander() and UnitDefs[unitDefID].customParams.commtype then
+		commsAlive[allianceID][unitID] = true
+	end
+	
+	if GG.GalaxyCampaignHandler and GG.GalaxyCampaignHandler.VitalUnit(unitID) then
+		vitalAlive[allianceID][unitID] = true
+	elseif vitalConstructorAllyTeam[allianceID] then
+		local ud = UnitDefs[unitDefID]
+		if ud.isBuilder or ud.isFactory then
+			vitalAlive[allianceID][unitID] = true
+		end
+	end
+end
+
+local function CheckMissionDefeatOnUnitLoss(unitID, allianceID)
+	if DEBUG_MSG then
+		Spring.Echo("CheckMissionDefeatOnUnitLoss", unitID, allianceID)
+	end
+	local defeatConfig = GG.GalaxyCampaignHandler.GetDefeatConfig(allianceID)
+	if defeatConfig.ignoreUnitLossDefeat then
+		return false
+	end
+	if defeatConfig.defeatIfUnitDestroyed and defeatConfig.defeatIfUnitDestroyed[unitID] then
+		if (not gameOverSent) and type(defeatConfig.defeatIfUnitDestroyed[unitID]) == "number" then
+			local objParameter = "objectiveSuccess_" .. defeatConfig.defeatIfUnitDestroyed[unitID]
+			local value = (allianceID == MISSION_PLAYER_ALLY_TEAM_ID and 0) or 1
+			Spring.SetGameRulesParam(objParameter, (Spring.GetGameRulesParam(objParameter) or 0) + value)
+		end
+		return true
+	end
+	if not (defeatConfig.vitalCommanders or defeatConfig.vitalUnitTypes) then
+		return (CountAllianceUnits(allianceID) <= 0) -- Default loss condition
+	end
+	if defeatConfig.vitalCommanders and not HasNoComms(allianceID) then
+		return false
+	end
+	if defeatConfig.vitalUnitTypes and not HasNoVitalUnits(allianceID) then
+		return false
+	end
+	return true
+end
+
+local function RemoveAllianceUnit(unitID, unitDefID, teamID, delayLossToNextGameFrame)
+	if DEBUG_MSG then
+		Spring.Echo("RemoveAllianceUnit", unitID, unitDefID, teamID, delayLossToNextGameFrame)
+	end
+	local _, _, _, _, _, allianceID = spGetTeamInfo(teamID, false)
 	aliveCount[teamID] = aliveCount[teamID] - 1
 	
-	aliveValue[teamID] = aliveValue[teamID] - UnitDefs[ud].metalCost
+	aliveValue[teamID] = aliveValue[teamID] - UnitDefs[unitDefID].metalCost
 	if aliveValue[teamID] < 0 then
 		aliveValue[teamID] = 0
 	end
-	
-	--Spring.Echo("removed alliance=" .. teamID, 'count='..aliveCount[allianceID]) 
-	if UnitDefs[ud].customParams.commtype then
-		commsAlive[allianceID][u] = nil
+
+	if UnitDefs[unitDefID].customParams.commtype then
+		commsAlive[allianceID][unitID] = nil
 	end
-	if ((CountAllianceUnits(allianceID) <= 0) or (commends and HasNoComms(allianceID))) and (allianceID ~= chickenAllyTeamID) then
+	
+	if vitalAlive[allianceID] and vitalAlive[allianceID][unitID] then
+		vitalAlive[allianceID][unitID] = nil
+	end
+
+	if allianceID == chickenAllyTeamID then
+		return
+	end
+	
+	if campaignBattleID then
+		if CheckMissionDefeatOnUnitLoss(unitID, allianceID) then
+			Spring.Log(gadget:GetInfo().name, LOG.INFO, "<Game Over> Purging allyTeam " .. allianceID)
+			DestroyAlliance(allianceID, delayLossToNextGameFrame)
+		end
+		return
+	elseif vitalConstructorAllyTeam[allianceID] and HasNoVitalUnits(allianceID) then
 		Spring.Log(gadget:GetInfo().name, LOG.INFO, "<Game Over> Purging allyTeam " .. allianceID)
-		DestroyAlliance(allianceID)
+		DestroyAlliance(allianceID, delayLossToNextGameFrame)
+	end
+	
+	if (CountAllianceUnits(allianceID) <= 0) or (commends and HasNoComms(allianceID)) then
+		Spring.Log(gadget:GetInfo().name, LOG.INFO, "<Game Over> Purging allyTeam " .. allianceID)
+		DestroyAlliance(allianceID, delayLossToNextGameFrame)
 	end
 end
 
@@ -297,21 +523,26 @@ local function CheckAllUnits()
 end
 
 -- check for active players
-local function ProcessLastAlly()	
-	if Spring.IsCheatingEnabled() or destroy_type == 'debug' then
+local function ProcessLastAlly()
+	if DEBUG_MSG then
+		Spring.Echo("ProcessLastAlly")
+	end
+	if Spring.IsCheatingEnabled() then
 		return
 	end
 	local allylist = spGetAllyTeamList()
 	local activeAllies = {}
+	local droppedAllies = {}
 	local lastActive = nil
-	for i=1,#allylist do
+	for i = 1, #allylist do
 		repeat
 		local a = allylist[i]
 		if (a == gaiaAllyTeamID) then break end -- continue
 		if (destroyedAlliances[a]) then break end -- continue
 		local teamlist = spGetTeamList(a)
 		if (not teamlist) then break end -- continue
-		local activeTeams = 0
+		local hasActiveTeam = false
+		local hasDroppedTeam = false
 		for i=1,#teamlist do
 			local t = teamlist[i]
 			-- any team without units is dead to us; so only teams who are active AND have units matter
@@ -319,36 +550,48 @@ local function ProcessLastAlly()
 			local numAlive = aliveCount[t]
 			if #(Spring.GetTeamUnits(t)) == 0 then numAlive = 0 end
 			if (numAlive > 0) or (GG.waitingForComm or {})[t] or (GetTeamIsChicken(t)) then	
-				local playerlist = spGetPlayerList(t, true) -- active players
-				if playerlist then
-					for j=1,#playerlist do
-						local _,active,spec = spGetPlayerInfo(playerlist[j])
-						if active and not spec then
-							activeTeams = activeTeams + 1
+				-- count AI teams as active
+				local _,_,_,isAiTeam = spGetTeamInfo(t, false)
+				if isAiTeam then
+					hasActiveTeam = true
+				else
+					local playerlist = spGetPlayerList(t) -- active players
+					if playerlist then
+						for j = 1, #playerlist do
+							local name,active,spec = spGetPlayerInfo(playerlist[j], false)
+							if not spec then
+								if active then
+									hasActiveTeam = true
+								else
+									hasDroppedTeam = true
+								end
+							else
+							end
 						end
 					end
 				end
-				-- count AI teams as active
-				local _,_,_,isAiTeam = spGetTeamInfo(t)
-				if isAiTeam then
-					activeTeams = activeTeams + 1
-				end
 			end
 		end
-		if activeTeams > 0 then
+		if hasActiveTeam then
 			activeAllies[#activeAllies+1] = a
 			lastActive = a
+		elseif hasDroppedTeam then
+			droppedAllies[#droppedAllies+1] = a
 		end
 		until true
 	end -- for
-
+	
+	if #activeAllies > 1 and inactiveWinAllyTeam then
+		inactiveWinAllyTeam = false
+		Spring.SetGameRulesParam("inactivity_win", -1)
+	end
+	
 	if #activeAllies == 2 then
-		if revealed then return end
-		if activeAllies[1] == chickenAllyTeamID or activeAllies[2] == chickenAllyTeamID then
+		if revealed or activeAllies[1] == chickenAllyTeamID or activeAllies[2] == chickenAllyTeamID then
 			return
 		end
 		-- run value comparison
-		local supreme = CompareArmyValues(activeAllies[1], activeAllies[2])
+		local supreme = (not campaignBattleID) and CompareArmyValues(activeAllies[1], activeAllies[2])
 		if supreme then
 			EchoUIMessage("AllyTeam " .. supreme .. " has an overwhelming numerical advantage!")
 			for i=1, #allylist do
@@ -360,11 +603,39 @@ local function ProcessLastAlly()
 			end
 		end
 	elseif #activeAllies < 2 then
-		-- remove every unit except for last active alliance
-		for i=1, #allylist do
-			local a = allylist[i]
-			if (a ~= lastActive)and(a ~= gaiaAllyTeamID) then
-				DestroyAlliance(a)
+		if #droppedAllies > 0 then
+			if lastActive then
+				inactiveWinAllyTeam = lastActive
+				Spring.SetGameRulesParam("inactivity_win", lastActive)
+			else
+				Draw()
+			end
+		else
+			if #activeAllies == 1 then
+				-- remove every unit except for last active alliance
+				for i=1, #allylist do
+					local a = allylist[i]
+					if (a ~= lastActive) and (a ~= gaiaAllyTeamID) then
+						DestroyAlliance(a)
+					end
+				end
+			else -- no active team. For example two roaches were left and blew up each other
+				Draw()
+			end
+		end
+	end
+end
+
+local function CheckInactivityWin(cmd, line, words, player)
+	if DEBUG_MSG then
+		Spring.Echo("ProcessLastAlly", cmd, line, words, player)
+	end
+	if inactiveWinAllyTeam and not gameover then
+		if player then 
+			local name,_,spec,_,allyTeamID = Spring.GetPlayerInfo(player, false)
+			if allyTeamID == inactiveWinAllyTeam and not spec then
+				Spring.Echo((name or "") .. " has forced a win due to dropped opposition.")
+				CauseVictory(inactiveWinAllyTeam)
 			end
 		end
 	end
@@ -375,61 +646,70 @@ end
 --------------------------------------------------------------------------------
 
 function gadget:TeamDied (teamID)
+	if DEBUG_MSG then
+		Spring.Echo("gadget:TeamDied", teamID)
+	end
 	if not gameover then
 		ProcessLastAlly()
 	end
 end
 
-function gadget:UnitFinished(u, ud, team)
-	if (team ~= gaiaTeamID)
-	  and(not doesNotCountList[ud])
-	  and(not finishedUnits[u])
-	then
-		finishedUnits[u] = true
-		AddAllianceUnit(u, ud, team)
+-- supposed to solve game over not being called when resigning during pause
+-- not actually called yet (PlayerChanged is unsynced at present)
+function gadget:PlayerChanged (playerID)
+	if gameover then
+		return
+	end
+
+	ProcessLastAlly()
+end
+
+function gadget:UnitFinished(unitID, unitDefID, teamID)
+	if (teamID ~= gaiaTeamID) and (not doesNotCountList[unitDefID]) and (not finishedUnits[unitID]) then
+		finishedUnits[unitID] = true
+		AddAllianceUnit(unitID, unitDefID, teamID)
 	end
 end
 
-function gadget:UnitCreated(u, ud, team)
+function gadget:UnitCreated(unitID, unitDefID, teamID)
 	if revealed then
-		local allyTeam = select(6, spGetTeamInfo(team))
+		local allyTeam = select(6, spGetTeamInfo(teamID, false))
 		if allyTeam == allianceToReveal then
-			Spring.SetUnitAlwaysVisible(u, true)
+			Spring.SetUnitAlwaysVisible(unitID, true)
 		end
 	end
 end
 
-function gadget:UnitDestroyed(u, ud, team)
+function gadget:UnitDestroyed(unitID, unitDefID, teamID)
 	if spGetGameRulesParam("loadPurge") == 1 then
 		return
 	end
 	
-	if (team ~= gaiaTeamID)
-	  and(not doesNotCountList[ud])
-	  and finishedUnits[u]
+	if (teamID ~= gaiaTeamID)
+	  and(not doesNotCountList[unitDefID])
+	  and finishedUnits[unitID]
 	then
-		finishedUnits[u] = nil
-		RemoveAllianceUnit(u, ud, team)
+		finishedUnits[unitID] = nil
+		RemoveAllianceUnit(unitID, unitDefID, teamID)
 	end
-	toDestroy[u] = nil
 end
 
 -- note: Taken comes before Given
-function gadget:UnitGiven(u, ud, newTeam, oldTeam)
+function gadget:UnitGiven(unitID, unitDefID, newTeam, oldTeamID)
 	if (newTeam ~= gaiaTeamID)
-	  and(not doesNotCountList[ud])
-	  and finishedUnits[u]
+	  and (not doesNotCountList[unitDefID])
+	  and finishedUnits[unitID]
 	then
-		AddAllianceUnit(u, ud, newTeam)
+		AddAllianceUnit(unitID, unitDefID, newTeam)
 	end
 end
 
-function gadget:UnitTaken(u, ud, oldTeam, newTeam)
-	if (oldTeam ~= gaiaTeamID)
-	  and(not doesNotCountList[ud])
-	  and finishedUnits[u]
+function gadget:UnitTaken(unitID, unitDefID, oldTeamID, newTeam)
+	if (oldTeamID ~= gaiaTeamID)
+	  and (not doesNotCountList[unitDefID])
+	  and finishedUnits[unitID]
 	then
-		RemoveAllianceUnit(u, ud, oldTeam)	
+		RemoveAllianceUnit(unitID, unitDefID, oldTeamID, true)
 	end
 end
 
@@ -439,33 +719,56 @@ function gadget:Initialize()
 		aliveValue[teams[i]] = 0
 		if GetTeamIsChicken(teams[i]) then
 			Spring.Log(gadget:GetInfo().name, LOG.INFO, "<Game Over> Chicken team found")
-			chickenAllyTeamID = select(6, Spring.GetTeamInfo(teams[i]))
+			chickenAllyTeamID = select(6, Spring.GetTeamInfo(teams[i], false))
 			--break
 		end
 	end
-	
 	CheckAllUnits()
+	
+	gadgetHandler:AddChatAction('inactivitywin', CheckInactivityWin, "")
 	
 	Spring.Log(gadget:GetInfo().name, LOG.INFO, "Game Over initialized")
 end
 
 function gadget:GameFrame(n)
+	if toDestroy[n] then
+		for unitID in pairs(toDestroy[n]) do
+			if Spring.ValidUnitID(unitID) then
+				local allyTeamID = Spring.GetUnitAllyTeam(unitID)
+				if destroyedAlliances[allyTeamID] then
+					spDestroyUnit(unitID, true)
+				end
+			end
+		end
+		toDestroy[n] = nil
+	end
+	
+	
+	if alliancesToDestroy then
+		for i = 1, #alliancesToDestroy do
+			DestroyAlliance(alliancesToDestroy[i])
+		end
+		alliancesToDestroy = nil
+	end
+	
 	-- check for last ally:
 	-- end condition: only 1 ally with human players, no AIs in other ones
 	if (n % 45 == 0) then
-		if toDestroy then
-			for u in pairs(toDestroy) do
-				spDestroyUnit(u, true)
-			end
-		end
-		toDestroy = {}
 		if not gameover and not spGetGameRulesParam("loadedGame") then
-			ProcessLastAlly()
+			if DEBUG_MSG then
+				Spring.Echo("planetIndex", planetIndex, type(planetIndex))
+			end
+			if planetIndex ~= 18 then
+				ProcessLastAlly()
+			end
 		end
 	end
 end
 
 function gadget:GameOver()
+	if DEBUG_MSG then
+		Spring.Echo("gadget:GameOver")
+	end
 	gameover = true
 	if noElo then
 		Spring.SendCommands("wbynum 255 SPRINGIE:noElo")

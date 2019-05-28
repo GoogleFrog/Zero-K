@@ -1,3 +1,6 @@
+
+VFS.Include("LuaRules/Configs/customcmds.h.lua")
+
 local sprGetActiveCommand    = Spring.GetActiveCommand
 local sprGetDefaultCommand   = Spring.GetDefaultCommand
 local sprGetGameSeconds      = Spring.GetGameSeconds
@@ -8,7 +11,6 @@ local sprGetModKeyState      = Spring.GetModKeyState
 local sprGiveOrderToUnit     = Spring.GiveOrderToUnit
 local sprSelectUnitArray     = Spring.SelectUnitArray
 local sprIsAboveMiniMap      = Spring.IsAboveMiniMap
-local sprMinimapMouseToWorld = Spring.MinimapMouseToWorld
 local sprTestBuildOrder      = Spring.TestBuildOrder
 local sprGetBuildFacing      = Spring.GetBuildFacing
 local sprGetMyTeamID         = Spring.GetMyTeamID
@@ -35,6 +37,7 @@ local CMD_JUMP = 38521
 local CMD_BUILD = -1
 local cmdColorsTbl = {
 	[CMD.MOVE]         = {0.5, 1.0, 0.5, 0.7},
+	[CMD_RAW_MOVE]     = {0.5, 1.0, 0.5, 0.7},
 	[CMD.PATROL]       = {0.3, 0.3, 1.0, 0.7},
 	[CMD.RECLAIM]      = {1.0, 0.2, 1.0, 0.7},
 	[CMD.REPAIR]       = {0.3, 1.0, 1.0, 0.7},
@@ -49,8 +52,10 @@ local cmdColorsTbl = {
 	[CMD_JUMP]         = {0.0, 1.0, 0.0, 0.7},
 }
 
+-- CMD_RAW_BUILD is intentionally not included because it will always be below another command
 local POINT_COMMAND = {
 	[CMD.MOVE] = true,
+	[CMD_RAW_MOVE] = true,
 	[CMD.PATROL] = true,
 	[CMD_JUMP] = true,
 	[CMD.FIGHT] = true,
@@ -62,6 +67,7 @@ local AREA_COMMAND = {
 	[CMD.RESURRECT] = true,
 	[CMD.LOAD_UNITS] = true,
 	[CMD.UNLOAD_UNITS] = true,
+	[CMD.UNLOAD_UNIT] = true,
 	[CMD.AREA_ATTACK] = true,
 	[CMD.RESTORE] = true,
 }
@@ -100,14 +106,7 @@ local function GetCommandColor(cmdID)
 end
 
 local function GetMouseWorldCoors(mx, my)
-	local cwc = nil
-
-	if (sprIsAboveMiniMap(mx, my)) then
-		cwc = sprMinimapMouseToWorld(mx, my)
-	else
-		_, cwc = sprTraceScreenRay(mx, my, true)
-	end
-
+	local _, cwc = Spring.TraceScreenRay(mx, my, true, sprIsAboveMiniMap(mx, my))
 	return cwc
 end
 
@@ -261,15 +260,15 @@ local function MoveWayPoints(wpTbl, mx, my, finalize)
 				end
 
 				if (cmdFacRad > 0) then
-					-- sprGiveOrderToUnit(cmdUnitID, CMD.INSERT, {cmdNum, cmdID, 0, cx, cy, cz, cmdFacRad}, {"alt"})
-					sprGiveOrderToUnit(cmdUnitID, CMD.INSERT, {cmdLink, cmdID, 0, cx+offsetX, cy, cz+offsetZ, cmdFacRad}, {""})
+					-- sprGiveOrderToUnit(cmdUnitID, CMD.INSERT, {cmdNum, cmdID, 0, cx, cy, cz, cmdFacRad}, CMD.OPT_ALT)
+					sprGiveOrderToUnit(cmdUnitID, CMD.INSERT, {cmdLink, cmdID, 0, cx+offsetX, cy, cz+offsetZ, cmdFacRad}, 0)
 				else
-					-- sprGiveOrderToUnit(cmdUnitID, CMD.INSERT, {cmdNum, cmdID, 0, cx, cy, cz}, {"alt"})
-					sprGiveOrderToUnit(cmdUnitID, CMD.INSERT, {cmdLink, cmdID, 0, cx+offsetX, cy, cz+offsetZ}, {""})
+					-- sprGiveOrderToUnit(cmdUnitID, CMD.INSERT, {cmdNum, cmdID, 0, cx, cy, cz}, CMD.OPT_ALT)
+					sprGiveOrderToUnit(cmdUnitID, CMD.INSERT, {cmdLink, cmdID, 0, cx+offsetX, cy, cz+offsetZ}, 0)
 				end
 
 				if (not alt) then
-					sprGiveOrderToUnit(cmdUnitID, CMD.REMOVE, {cmdTag}, {""})
+					sprGiveOrderToUnit(cmdUnitID, CMD.REMOVE, {cmdTag}, 0)
 				end
 			else
 				wpData[1] = cx
@@ -419,7 +418,7 @@ function widget:DrawWorld()
 			glPushMatrix()
 			glTranslate(nx, ny, nz)
 			glRotate(wpData[4] * 90.0, 0.0, 1.0, 0.0)
-			glUnitShape(-cmd.id, sprGetMyTeamID())
+			glUnitShape(-cmd.id, sprGetMyTeamID(), false, true, false)
 			glPopMatrix()
 		end
 

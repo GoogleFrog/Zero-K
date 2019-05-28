@@ -15,6 +15,7 @@
 --------------------------------------------------------------------------------
 
 -- stable release?
+local ignorelist = {count = 0,ignorees ={}} -- Ignore workaround for WG table.
 local isStable = false
 local resetWidgetDetailLevel = false -- has widget detail level changed
 
@@ -28,6 +29,14 @@ function includeZIPFirst(filename, envTable)
   return VFS.Include(LUAUI_DIRNAME .. filename, envTable, VFS.ZIP_FIRST)
 end
 
+WG = {}
+Spring.Utilities = {}
+VFS.Include("LuaRules/Utilities/tablefunctions.lua")
+VFS.Include("LuaRules/Utilities/versionCompare.lua")
+VFS.Include("LuaRules/Utilities/unitStates.lua")
+VFS.Include("LuaRules/Utilities/teamFunctions.lua")
+
+VFS.Include("LuaRules/Utilities/function_override.lua")
 
 include("keysym.h.lua")
 include("utils.lua")
@@ -45,6 +54,7 @@ local WIDGET_DIRNAME     = LUAUI_DIRNAME .. 'Widgets/'
 
 local HANDLER_BASENAME = "cawidgets.lua"
 local SELECTOR_BASENAME = 'selector.lua'
+
 
 do
 	local isMission = Game.modDesc:find("Mission Mutator")
@@ -133,7 +143,7 @@ widgetHandler = {
 
   actionHandler = include("actions.lua"),
   
-  WG = {}, -- shared table for widgets
+  WG = WG, -- shared table for widgets
 
   globals = {}, -- global vars/funcs
 
@@ -142,7 +152,6 @@ widgetHandler = {
   
   tweakMode = false,
 }
-
 
 -- these call-ins are set to 'nil' if not used
 -- they are setup in UpdateCallIns()
@@ -162,8 +171,10 @@ local flexCallIns = {
   'DefaultCommand',
   'UnitCreated',
   'UnitFinished',
+  'UnitReverseBuilt',
   'UnitFromFactory',
   'UnitDestroyed',
+  'UnitDestroyedByTeam',
   'UnitExperience',
   'UnitTaken',
   'UnitGiven',
@@ -195,12 +206,15 @@ local flexCallIns = {
   'DrawWorldReflection',
   'DrawWorldRefraction',
   'DrawScreenEffects',
+  'DrawScreenPost',
   'DrawInMiniMap',
   'RecvSkirmishAIMessage',
   'SelectionChanged',
   'AddTransmitLine',
   'AddConsoleMessage',
   'VoiceCommand',
+  'Save',
+  'Load',
 }
 local flexCallInMap = {}
 for _,ci in ipairs(flexCallIns) do
@@ -214,7 +228,13 @@ local callInLists = {
   'Update',
   'TextCommand',
   'CommandNotify',
+  'UnitCommandNotify',
   'AddConsoleLine',
+  'ReceiveUserInfo', 	-- widget:ReceiveUserInfo(info)
+						-- info is a table with keys name, avatar, icon, badges, admin, clan, faction, country
+							-- values are strings except:
+							-- badges: comma separated string of badge names
+							-- admin: boolean
   'ViewResize',
   'DrawScreen',
   'KeyPress',
@@ -279,6 +299,21 @@ end
 
 local function ripairs(t)
   return rev_iter, t, (1 + #t)
+end
+
+-- String helper to split by delimiter (userinfo)
+
+function string:split(delimiter)
+  local result = { }
+  local from  = 1
+  local delim_from, delim_to = string.find( self, delimiter, from  )
+  while delim_from do
+    table.insert( result, string.sub( self, from , delim_from-1 ) )
+    from  = delim_to + 1
+    delim_from, delim_to = string.find( self, delimiter, from  )
+  end
+  table.insert( result, string.sub( self, from  ) )
+  return result
 end
 
 --------------------------------------------------------------------------------
@@ -379,6 +414,23 @@ function widgetHandler:Initialize()
     isStable = true
   end
 
+  -- Add ignorelist --
+  local customkeys = select(10, Spring.GetPlayerInfo(Spring.GetMyPlayerID()))
+  if customkeys["ignored"] then
+    if string.find(customkeys["ignored"],",") then
+      local newignorelist = string.gsub(customkeys["ignored"],","," ")
+      Spring.Echo("Setting Serverside ignorelist: " .. newignorelist)
+      for ignoree in string.gmatch(newignorelist,"%S+") do
+        ignorelist.ignorees[ignoree] = true
+        ignorelist.count = ignorelist.count + 1
+      end
+      newignorelist = nil
+    elseif string.len(customkeys["ignored"]) > 1 then
+      ignorelist.ignorees[customkeys["ignored"]] = true
+      ignorelist.count = ignorelist.count + 1
+    end
+  end
+  customkeys = nil
   self:LoadOrderList()
   self:LoadConfigData()
 
@@ -568,18 +620,13 @@ end
 
 function widgetHandler:NewWidget()
   local widget = {}
-  if (true) then
-    -- copy the system calls into the widget table
-    for k,v in pairs(System) do
-      widget[k] = v
-    end
-  else
-    -- use metatable redirection
-    setmetatable(widget, {
-      __index = System,
-      __metatable = true,
-    })
+
+  -- copy the system calls into the widget table
+  -- don't use metatable redirection to System so as not to pollute it
+  for k,v in pairs(System) do
+    widget[k] = v
   end
+
   widget.WG = self.WG    -- the shared table
   widget.widget = widget -- easy self referencing
 
@@ -602,6 +649,9 @@ function widgetHandler:NewWidget()
       self.mouseOwner = nil
     end
   end
+  wh.Ignore = function (_,name) if not ignorelist.ignorees[name] then ignorelist.ignorees[name] = true;ignorelist.count = ignorelist.count + 1 end end
+  wh.Unignore = function (_,name) ignorelist.ignorees[name] = nil;ignorelist.count = ignorelist.count - 1 end
+  wh.GetIgnoreList = function (_) return ignorelist["ignorees"],ignorelist.count end
 
   wh.isStable = function (_) return self:isStable() end
 
@@ -928,6 +978,10 @@ end
 
 --------------------------------------------------------------------------------
 
+function widgetHandler:IsWidgetKnown(name)
+	return self.knownWidgets[name] and true or false
+end
+
 function widgetHandler:EnableWidget(name)
   local ki = self.knownWidgets[name]
   if (not ki) then
@@ -1174,6 +1228,7 @@ function widgetHandler:Shutdown()
 	w:Shutdown()
   end
   Spring.Echo("End widgetHandler:Shutdown")
+  
   return
 end
 
@@ -1229,7 +1284,6 @@ function widgetHandler:ConfigureLayout(command)
   return false
 end
 
-
 function widgetHandler:CommandNotify(id, params, options)
   for _,w in ipairs(self.CommandNotifyList) do
     if (w:CommandNotify(id, params, options)) then
@@ -1239,8 +1293,17 @@ function widgetHandler:CommandNotify(id, params, options)
   return false
 end
 
-local MUTE_SPECTATORS = Spring.GetModOptions().mutespec
-local MUTE_LOBBY = Spring.GetModOptions().mutelobby
+function widgetHandler:UnitCommandNotify(unitID, id, params, options)
+  for _,w in ipairs(self.UnitCommandNotifyList) do
+    if (w:UnitCommandNotify(unitID, id, params, options)) then
+      return true
+    end
+  end
+  return false
+end
+
+local MUTE_SPECTATORS = Spring.GetModOptions().mutespec or 'autodetect'
+local MUTE_LOBBY = Spring.GetModOptions().mutelobby or 'autodetect'
 local playerNameToID 
 
 do
@@ -1251,7 +1314,7 @@ do
 	for _, teamID in ipairs(teams) do
 		local teamLuaAI = Spring.GetTeamLuaAI(teamID)
 		if ((teamLuaAI == nil or teamLuaAI == "") and teamID ~= gaiaTeam) then
-			local _,_,_,ai,side,ally = Spring.GetTeamInfo(teamID)
+			local _,_,_,ai,side,ally = Spring.GetTeamInfo(teamID, false)
 			if (not ai) and (not humanAlly[ally]) then 
 				humanAlly[ally] = true
 				humanAllyCount = humanAllyCount + 1
@@ -1284,9 +1347,11 @@ do
 		local playerList = Spring.GetPlayerList()
 		for i = 1, #playerList do
 			local playerID = playerList[i]
-			local name, _, spectating = Spring.GetPlayerInfo(playerID)
-			if not spectating then
-				playerNameToID[name] = playerID
+			if playerID then
+				local name, _, spectating = Spring.GetPlayerInfo(playerID, false)
+				if not spectating then
+					playerNameToID[name] = playerID
+				end
 			end
 		end
 	end
@@ -1295,6 +1360,7 @@ end
 
 --NOTE: StringStarts() and MessageProcessor is included in "chat_preprocess.lua"
 function widgetHandler:AddConsoleLine(msg, priority)
+
   if StringStarts(msg, "Error: Invalid command received") or StringStarts(msg, "Error: Dropped command ") then
 	return
   elseif StringStarts(msg, transmitLobbyMagic) then -- sending to the lobby
@@ -1317,7 +1383,7 @@ function widgetHandler:AddConsoleLine(msg, priority)
 	--censor message for muted player. This is mandatory, everyone is forced to close ears to muted players (ie: if it is optional, then everyone will opt to hear muted player for spec-cheat info. Thus it will defeat the purpose of mute)
 	local newMsg = { text = msg, priority = priority }
 	MessageProcessor:ProcessConsoleLine(newMsg) --chat_preprocess.lua
-	if newMsg.msgtype ~= 'other' and newMsg.msgtype ~= 'autohost' and newMsg.msgtype ~= 'game_message' then 
+	if newMsg.msgtype ~= 'other' and newMsg.msgtype ~= 'autohost' and newMsg.msgtype ~= 'userinfo' and newMsg.msgtype ~= 'game_message' then 
 		if MUTE_SPECTATORS and newMsg.msgtype == 'spec_to_everyone' then
 			local spectating = select(1, Spring.GetSpectatingState())
 			if not spectating then
@@ -1327,7 +1393,7 @@ function widgetHandler:AddConsoleLine(msg, priority)
 		end
 		local playerID_msg = newMsg.player and newMsg.player.id --retrieve playerID from message.
 		local customkeys = select(10, Spring.GetPlayerInfo(playerID_msg))
-		if customkeys and customkeys.muted then
+		if customkeys and (customkeys.muted or (newMsg.msgtype == 'spec_to_everyone' and ((customkeys.can_spec_chat or '1') == '0'))) then
 			local myPlayerID = Spring.GetLocalPlayerID()
 			if myPlayerID == playerID_msg then --if I am the muted, then:
 				newMsg.argument = "<your message was blocked by mute>"	--remind myself that I am muted.		
@@ -1337,8 +1403,13 @@ function widgetHandler:AddConsoleLine(msg, priority)
 			end
 			--TODO: improve chili_chat2 spam-filter/dedupe-detection too.
 		end
+		-- IGNORE FEATURE--
+		if ignorelist.ignorees[select(1,Spring.GetPlayerInfo(playerID_msg, false))] then
+			return
+        	end
 	end
 	
+    
 	if MUTE_LOBBY and newMsg.msgtype == 'autohost' then
 		local spectating = select(1, Spring.GetSpectatingState())
 		if (not spectating) and newMsg.argument then
@@ -1348,7 +1419,7 @@ function widgetHandler:AddConsoleLine(msg, priority)
 				if endChar then
 					local name = string.sub(newMsg.argument, 2, endChar-1)
 					if playerNameToID[name] then
-						local spectating = select(3, Spring.GetPlayerInfo(playerNameToID[name]))
+						local spectating = select(3, Spring.GetPlayerInfo(playerNameToID[name], false))
 						if spectating then
 							playerNameToID[name] = nil
 							return
@@ -1361,6 +1432,36 @@ function widgetHandler:AddConsoleLine(msg, priority)
 				end
 			end
 		end
+	end
+	--Ignore's lobby blocker.--
+	if newMsg.msgtype == 'autohost' and newMsg.argument and string.sub(newMsg.argument, 1, 1) == "<" then
+		local endChar = string.find(newMsg.argument, ">")
+		if endChar then
+			local name = string.sub(newMsg.argument, 2, endChar-1)
+			if ignorelist.ignorees[name] then
+				return -- block chat
+			end
+		end
+	end
+	if newMsg.msgtype == 'userinfo' and newMsg.argument then
+	
+		local list = newMsg.argument:split("|")
+		local info = {
+			name = list[1], 
+			avatar = list[2], 
+			icon = list[3], 
+			badges = list[4],
+			admin = list[5] and string.lower(list[5]) == 'true', 
+			clan = list[6], 
+			faction = list[7], 
+			country = list[8], 
+		}
+		
+		--send message to widget:ReceiveUserInfo
+		for _,w in ipairs(self.ReceiveUserInfoList) do
+			w:ReceiveUserInfo(info) 
+		end
+		return
 	end
   
 	--send message to widget:AddConsoleLine
@@ -1388,7 +1489,9 @@ end
 
 
 function widgetHandler:CommandsChanged()
-  widgetHandler:UpdateSelection() -- for selectionchanged
+  if widgetHandler:UpdateSelection() then -- for selectionchanged
+    return -- selection updated, don't call commands changed.
+  end
   self.inCommandsChanged = true
   self.customCommands = {}
   for _,w in ipairs(self.CommandsChangedList) do
@@ -1444,41 +1547,46 @@ end
 
 function widgetHandler:DrawWorld()
   for _,w in ripairs(self.DrawWorldList) do
+    gl.Fog(true)
     w:DrawWorld()
   end
-  return
+  gl.Fog(false)
 end
 
 
 function widgetHandler:DrawWorldPreUnit()
   for _,w in ripairs(self.DrawWorldPreUnitList) do
+    gl.Fog(true)
     w:DrawWorldPreUnit()
   end
-  return
+  gl.Fog(false)
 end
 
 
 function widgetHandler:DrawWorldShadow()
   for _,w in ripairs(self.DrawWorldShadowList) do
+    gl.Fog(true)
     w:DrawWorldShadow()
   end
-  return
+  gl.Fog(false)
 end
 
 
 function widgetHandler:DrawWorldReflection()
   for _,w in ripairs(self.DrawWorldReflectionList) do
+    gl.Fog(true)
     w:DrawWorldReflection()
   end
-  return
+  gl.Fog(false)
 end
 
 
 function widgetHandler:DrawWorldRefraction()
   for _,w in ripairs(self.DrawWorldRefractionList) do
+    gl.Fog(true)
     w:DrawWorldRefraction()
   end
-  return
+  gl.Fog(false)
 end
 
 
@@ -1489,6 +1597,12 @@ function widgetHandler:DrawScreenEffects(vsx, vsy)
   return
 end
 
+function widgetHandler:DrawScreenPost(vsx, vsy)
+  for _,w in ripairs(self.DrawScreenPostList) do
+    w:DrawScreenPost(vsx, vsy)
+  end
+  return
+end
 
 function widgetHandler:DrawInMiniMap(xSize, ySize)
   for _,w in ripairs(self.DrawInMiniMapList) do
@@ -1774,6 +1888,8 @@ end
 
 function widgetHandler:GameStart()
   for _,w in ipairs(self.GameStartList) do
+    -- If snd_music stops starting in chobby try doing this.
+	--local info = w:GetInfo()
     w:GameStart()
   end
 
@@ -1782,10 +1898,10 @@ function widgetHandler:GameStart()
 	for _, teamID in ipairs(Spring.GetTeamList()) do
 		local teamLuaAI = Spring.GetTeamLuaAI(teamID)
 		if ((teamLuaAI == nil or teamLuaAI == "") and teamID ~= gaiaTeam) then
-			local _,_,_,ai,side,ally = Spring.GetTeamInfo(teamID)
+			local _,_,_,ai,side,ally = Spring.GetTeamInfo(teamID, false)
 			if (not ai) then 
 				for _, pid in ipairs(Spring.GetPlayerList(teamID)) do
-					local name, active, spec = Spring.GetPlayerInfo(pid)
+					local name, active, spec = Spring.GetPlayerInfo(pid, false)
 					if active and not spec then plist = plist .. "," .. name end
 				end
 			end	
@@ -1795,9 +1911,9 @@ function widgetHandler:GameStart()
   return
 end
 
-function widgetHandler:GameOver()
+function widgetHandler:GameOver(winners)
   for _,w in ipairs(self.GameOverList) do
-    w:GameOver()
+    w:GameOver(winners)
   end
   return
 end
@@ -1890,8 +2006,8 @@ end
 
 
 function widgetHandler:MapDrawCmd(playerID, cmdType, px, py, pz, ...)
-  local customkeys = select(10, Spring.GetPlayerInfo(playerID))
-  if customkeys and customkeys.muted then
+  local playerName, _, _, _, _, _, _, _, _, customkeys = Spring.GetPlayerInfo(playerID)
+  if ignorelist.ignorees[playerName] or (customkeys and customkeys.muted) then
     return true
   end
   
@@ -1948,6 +2064,12 @@ function widgetHandler:UnitFinished(unitID, unitDefID, unitTeam)
   return
 end
 
+function widgetHandler:UnitReverseBuilt(unitID, unitDefID, unitTeam)
+  for _,w in ipairs(self.UnitReverseBuiltList) do
+    w:UnitReverseBuilt(unitID, unitDefID, unitTeam)
+  end
+  return
+end
 
 function widgetHandler:UnitFromFactory(unitID, unitDefID, unitTeam,
                                        factID, factDefID, userOrders)
@@ -1959,9 +2081,18 @@ function widgetHandler:UnitFromFactory(unitID, unitDefID, unitTeam,
 end
 
 
-function widgetHandler:UnitDestroyed(unitID, unitDefID, unitTeam)
+function widgetHandler:UnitDestroyed(unitID, unitDefID, unitTeam, pre)
+  if pre == false then return end
   for _,w in ipairs(self.UnitDestroyedList) do
     w:UnitDestroyed(unitID, unitDefID, unitTeam)
+  end
+  return
+end
+
+
+function widgetHandler:UnitDestroyedByTeam(unitID, unitDefID, unitTeam, attTeamID)
+  for _,w in ipairs(self.UnitDestroyedByTeamList) do
+    w:UnitDestroyedByTeam(unitID, unitDefID, unitTeam, attTeamID)
   end
   return
 end
@@ -2002,18 +2133,18 @@ end
 
 
 function widgetHandler:UnitCommand(unitID, unitDefID, unitTeam,
-                                   cmdId, cmdOpts, cmdParams,cmdTag) --cmdTag available in Spring 95
+                                   cmdId, cmdParams, cmdOpts, cmdTag) --cmdTag available in Spring 95
   for _,w in ipairs(self.UnitCommandList) do
     w:UnitCommand(unitID, unitDefID, unitTeam,
-                  cmdId, cmdOpts, cmdParams,cmdTag)
+                  cmdId, cmdParams, cmdOpts, cmdTag)
   end
   return
 end
 
 
-function widgetHandler:UnitCmdDone(unitID, unitDefID, unitTeam, cmdID, cmdTag, cmdParams, cmdOptions) --cmdParams & cmdOptions available in Spring 95
+function widgetHandler:UnitCmdDone(unitID, unitDefID, unitTeam, cmdID, cmdParams, cmdOptions, cmdTag) --cmdParams & cmdOptions available in Spring 95
   for _,w in ipairs(self.UnitCmdDoneList) do
-    w:UnitCmdDone(unitID, unitDefID, unitTeam, cmdID, cmdTag, cmdParams, cmdOptions)
+    w:UnitCmdDone(unitID, unitDefID, unitTeam, cmdID, cmdParams, cmdOptions, cmdTag)
   end
   return
 end
@@ -2175,34 +2306,54 @@ end
 -- local helper (not a real call-in)
 local oldSelection = {}
 function widgetHandler:UpdateSelection()
-  local changed
-  local newSelection = Spring.GetSelectedUnits()
-  if (#newSelection == #oldSelection) then
-    for i=1, #newSelection do
-      if (newSelection[i] ~= oldSelection[i]) then -- it seems the order stays
-        changed = true
-        break
-      end                                          
-    end
-  else
-    changed = true
-  end
-  if (changed) then
-    widgetHandler:SelectionChanged(newSelection)
-  end
-  oldSelection = newSelection
+	local changed
+	local newSelection = Spring.GetSelectedUnits()
+	if (#newSelection == #oldSelection) then
+		for i = 1, #oldSelection do
+			if (newSelection[i] ~= oldSelection[i]) then -- it seems the order stays
+				changed = true
+				break
+			end
+		end
+	else
+		changed = true
+	end
+	if (changed) then
+		local subselection = true
+		if #newSelection > #oldSelection then
+			subselection = false
+		else
+			local newSeen = 0
+			local oldSelectionMap = {}
+			for i = 1, #oldSelection do
+				oldSelectionMap[oldSelection[i]] = true
+			end
+			for i = 1, #newSelection do
+				if not oldSelectionMap[newSelection[i]] then
+					subselection = false
+					break
+				end
+			end
+		end
+		if widgetHandler:SelectionChanged(newSelection, subselection) then
+			-- selection changed, don't set old selection to new selection as it is soon to change.
+			return true
+		end
+	end
+	oldSelection = newSelection
+	return false
 end
 
 
-function widgetHandler:SelectionChanged(selectedUnits)
+function widgetHandler:SelectionChanged(selectedUnits, subselection)
   for _,w in ipairs(self.SelectionChangedList) do
-    local unitArray = w:SelectionChanged(selectedUnits)
+    local unitArray = w:SelectionChanged(selectedUnits, subselection)
     if (unitArray) then
       Spring.SelectUnitArray(unitArray)
-      break
+      return true
     end
   end
-  return
+  return false
 end
 
 
@@ -2216,6 +2367,20 @@ end
 function widgetHandler:UnsyncedHeightMapUpdate(x1,z1,x2,z2)
   for _,w in ipairs(self.UnsyncedHeightMapUpdateList) do
     w:UnsyncedHeightMapUpdate(x1,z1,x2,z2)
+  end
+  return
+end
+
+function widgetHandler:Save(zip)
+  for _,w in ipairs(self.SaveList) do
+    w:Save(zip)
+  end
+  return
+end
+
+function widgetHandler:Load(zip)
+  for _,w in ipairs(self.LoadList) do
+    w:Load(zip)
   end
   return
 end

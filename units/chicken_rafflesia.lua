@@ -10,14 +10,10 @@ unitDef = {
   builder                       = false,
   buildPic                      = [[chicken_rafflesia.png]],
   buildTime                     = 480,
-  canAttack                     = true,
-  canstop                       = [[1]],
   category                      = [[SINK]],
 
   customParams                  = {
-    description_pl = [[Tarcza]],
-    helptext       = [[The Rafflesia protects nearby chicken units and structures with its shield.]],
-    helptext_pl    = [[Rafflesia chroni okoliczne kurczaki swoja tarcza.]],
+    shield_emit_offset = -4,
   },
 
   explodeAs                     = [[NOWEAPON]],
@@ -27,7 +23,6 @@ unitDef = {
   idleAutoHeal                  = 5,
   idleTime                      = 1800,
   levelGround                   = false,
-  mass                          = 120,
   maxDamage                     = 500,
   maxSlope                      = 36,
   maxVelocity                   = 0,
@@ -37,7 +32,6 @@ unitDef = {
   objectName                    = [[chicken_rafflesia.s3o]],
   onoffable                     = true,
   power                         = 480,
-  seismicSignature              = 4,
   selfDestructAs                = [[NOWEAPON]],
 
   sfxtypes                      = {
@@ -49,13 +43,11 @@ unitDef = {
     },
 
   },
-
-  side                          = [[THUNDERBIRDS]],
   sightDistance                 = 512,
-  smoothAnim                    = true,
+  sonarDistance                 = 512,
   turnRate                      = 0,
   upright                       = false,
-  useBuildingGroundDecal        = true,
+  useBuildingGroundDecal        = false,
   workerTime                    = 0,
   yardMap                       = [[ooooooooo]],
 
@@ -82,8 +74,8 @@ unitDef = {
       impulseFactor           = 0,
       interceptedByShieldType = 1,
       shieldAlpha             = 0.15,
-      shieldBadColor          = [[1.0 1 0.1]],
-      shieldGoodColor         = [[0.1 1.0 0.1]],
+      shieldBadColor          = [[1.0 1 0.1 1]],
+      shieldGoodColor         = [[0.1 1.0 0.1 1]],
       shieldInterceptType     = 3,
       shieldPower             = 2500,
       shieldPowerRegen        = 180,
@@ -91,10 +83,12 @@ unitDef = {
       shieldRadius            = 300,
       shieldRepulser          = false,
       smartShield             = true,
-      texture1                = [[wakelarge]],
-      visibleShield           = true,
-      visibleShieldHitFrames  = 30,
+      visibleShield           = false,
       visibleShieldRepulse    = false,
+      --texture1                = [[wakelarge]],
+      --visibleShield           = true,
+      --visibleShieldHitFrames  = 30,
+      --visibleShieldRepulse    = false,
       weaponType              = [[Shield]],
     },
 

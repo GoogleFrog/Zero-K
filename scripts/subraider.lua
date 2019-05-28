@@ -4,15 +4,19 @@ local wake = piece "wake"
 local base = piece "base"
 local firepoint = piece "firepoint"
 
-function script.QueryWeapon(num) return firepoint end
-function script.AimFromWeapon(num) return base end
+function script.QueryWeapon(num)
+	return firepoint
+end
+function script.AimFromWeapon(num)
+	return base
+end
 
 function script.AimWeapon(num, heading, pitch)
 	return num == 2
 end
 
 function script.BlockShot(num, targetID)
-	return GG.OverkillPrevention_CheckBlock(unitID, targetID, 350.1, 25, true)
+	return GG.OverkillPrevention_CheckBlock(unitID, targetID, 240, 25, 0.5) -- Leeway for amph regen
 end
 
 local submerged = true
@@ -26,6 +30,7 @@ function script.setSFXoccupy(num)
 		submerged = true
 	end
 end
+
 
 function script.HitByWeapon (x, z, weaponDefID, damage)
 	if weaponDefID < 0 then return damage end

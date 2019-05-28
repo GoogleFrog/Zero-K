@@ -29,6 +29,8 @@ local spGetGroundHeight     = Spring.GetGroundHeight
 local spGetGroundOrigHeight = Spring.GetGroundOrigHeight
 local floor = math.floor
 
+local SAVE_FILE = "Gadgets/terrain_texture_handler.lua"
+
 if (gadgetHandler:IsSyncedCode()) then
 
 -------------------------------------------------------------------------------------
@@ -37,13 +39,33 @@ if (gadgetHandler:IsSyncedCode()) then
 -------------------------------------------------------------------------------------
 -------------------------------------------------------------------------------------
 
+local TerrainTextureFunctions = {}
+
+function TerrainTextureFunctions.UpdateAll()
+	SendToUnsynced("UpdateAll")
+end
+
 function gadget:Initialize()
 	_G.SentBlockList = {}
+	GG.TerrainTexture = TerrainTextureFunctions
 end
 
 function GG.Terrain_Texture_changeBlockList(blockList)
 	_G.SentBlockList = blockList
 	SendToUnsynced("changeBlockList")
+end
+
+function gadget:Load(zip)
+	if not (GG.SaveLoad and GG.SaveLoad.ReadFile) then
+		Spring.Log(gadget:GetInfo().name, LOG.ERROR, "Failed to access save/load API")
+		return
+	end
+
+	local loadData = GG.SaveLoad.ReadFile(zip, "Terrain Texture", SAVE_FILE) or {}
+	if loadData and #loadData > 0 then
+		GG.Terrain_Texture_changeBlockList(loadData)
+	end
+	SendToUnsynced("UpdateAll")
 end
 
 function gadget:Shutdown()
@@ -262,6 +284,7 @@ function gadget:DrawGenesis()
 							wrap_s = GL.CLAMP_TO_EDGE, 
 							wrap_t = GL.CLAMP_TO_EDGE,
 							fbo = true,
+							min_filter = GL.LINEAR_MIPMAP_NEAREST,
 						}),
 						orig = glCreateTexture(SQUARE_SIZE, SQUARE_SIZE, {
 							wrap_s = GL.CLAMP_TO_EDGE, 
@@ -269,11 +292,20 @@ function gadget:DrawGenesis()
 							fbo = true,
 						}),
 					}
-					
-					spGetMapSquareTexture(sx, sz, 0, mapTex[sx][sz].orig)
-					--spGetMapSquareTexture(sx, sz, 0, mapTex[sx][sz].cur)
-					gl.Texture(mapTex[sx][sz].orig)
-					gl.RenderToTexture(mapTex[sx][sz].cur, drawCopySquare)
+					if mapTex[sx][sz].orig and mapTex[sx][sz].cur then
+						spGetMapSquareTexture(sx, sz, 0, mapTex[sx][sz].orig)
+						--spGetMapSquareTexture(sx, sz, 0, mapTex[sx][sz].cur)
+						gl.Texture(mapTex[sx][sz].orig)
+						gl.RenderToTexture(mapTex[sx][sz].cur, drawCopySquare)
+					else
+						if mapTex[sx][sz].cur then
+							gl.DeleteTextureFBO(mapTex[sx][sz].cur)
+						end
+						if mapTex[sx][sz].orig then
+							gl.DeleteTextureFBO(mapTex[sx][sz].orig)
+						end
+						mapTex[sx][sz] = nil
+					end
 				end
 				
 				if texturePool[tex] then --if texture (tex: 1,2,3) have been set to this chunk
@@ -321,14 +353,16 @@ function gadget:DrawGenesis()
 			local square = toRestore.data[i]
 			local sx = square.sx
 			local sz = square.sz
-			gl.Texture(mapTex[sx][sz].orig)
-			for j = 1, square.count do
-				local x = square.data[j].x
-				local z = square.data[j].z
-				local sourceX = (x-sx*SQUARE_SIZE)/SQUARE_SIZE
-				local sourceZ = (z-sz*SQUARE_SIZE)/SQUARE_SIZE
-				local sourceSize = BLOCK_SIZE/SQUARE_SIZE
-				gl.RenderToTexture(mapTex[sx][sz].cur, drawTextureOnSquare, x-sx*SQUARE_SIZE,z-sz*SQUARE_SIZE, BLOCK_SIZE, sourceX, sourceZ, sourceSize)
+			if mapTex[sx][sz] then
+				gl.Texture(mapTex[sx][sz].orig)
+				for j = 1, square.count do
+					local x = square.data[j].x
+					local z = square.data[j].z
+					local sourceX = (x-sx*SQUARE_SIZE)/SQUARE_SIZE
+					local sourceZ = (z-sz*SQUARE_SIZE)/SQUARE_SIZE
+					local sourceSize = BLOCK_SIZE/SQUARE_SIZE
+					gl.RenderToTexture(mapTex[sx][sz].cur, drawTextureOnSquare, x-sx*SQUARE_SIZE,z-sz*SQUARE_SIZE, BLOCK_SIZE, sourceX, sourceZ, sourceSize)
+				end
 			end
 		end
 		
@@ -346,7 +380,9 @@ function gadget:DrawGenesis()
 					local sz = block.sz
 					local dx = (x/tex.size)%1
 					local dz = (z/tex.size)%1
-					gl.RenderToTexture(mapTex[sx][sz].cur, drawTextureOnSquare, x-sx*SQUARE_SIZE,z-sz*SQUARE_SIZE, BLOCK_SIZE, dx, dz, tex.tile)
+					if mapTex[sx][sz] then
+						gl.RenderToTexture(mapTex[sx][sz].cur, drawTextureOnSquare, x-sx*SQUARE_SIZE,z-sz*SQUARE_SIZE, BLOCK_SIZE, dx, dz, tex.tile)
+					end
 				end
 			end
 		end
@@ -362,7 +398,8 @@ function gadget:DrawGenesis()
 				local square = squareList.data[i]
 				local sx = square.x
 				local sz = square.z
-				if not (updatedSquareMap[sx] and updatedSquareMap[sx][sz]) then
+				if mapTex[sx][sz] and not (updatedSquareMap[sx] and updatedSquareMap[sx][sz]) then
+					gl.GenerateMipmap(mapTex[sx][sz].cur)
 					spSetMapSquareTexture(sx,sz, mapTex[sx][sz].cur)
 					--Spring.MarkerAddPoint(sx*SQUARE_SIZE,0,sz*SQUARE_SIZE,Spring.GetGameFrame())
 					updatedSquareMap[sx] = updatedSquareMap[sx] or {}
@@ -386,6 +423,40 @@ function gadget:UnsyncedHeightMapUpdate(x1, z1, x2, z2)
 	UMHU_updatequeue[#UMHU_updatequeue+1] ={x1, z1, x2, z2} --sent to gadget:DrawWorld()
 end
 
+local function UpdateAll()
+	for z = 0, MAP_HEIGHT/8 - 8, 8 do
+		UMHU_updatequeue[#UMHU_updatequeue+1] = {0, z, MAP_WIDTH/8 - 8, z + 8}
+	end
+end
+
+function gadget:Save(zip)
+	if not GG.SaveLoad then
+		Spring.Log(gadget:GetInfo().name, LOG.ERROR, "Failed to access save/load API")
+		return
+	end
+	
+	local blockList = {}
+	-- Save the current texture
+	for x, rest in pairs(blockStateMap) do
+		for z, tex in pairs(rest) do
+			table.insert(blockList, {x = x, z = z, tex = tex})
+		end
+	end
+	
+	-- Save the pending changes
+	for _, chunkCols in pairs(chunkMap) do
+		for _, chunk in pairs(chunkCols) do
+			local chunkBlocks = chunk.blockList
+			for i = 1, chunkBlocks.count do
+				local b = chunkBlocks.data[i]
+				table.insert(blockList, {x = b.x, z = b.z, tex = b.tex})
+			end
+		end
+	end
+
+	GG.SaveLoad.WriteSaveData(zip, SAVE_FILE, Spring.Utilities.MakeRealTable(blockList, "Terrain Texture"))
+end
+
 local function Shutdown()
 	-- Iterating over a map here but it's so rare that I don't care!
 	for x = 0, SQUARES_X-1 do
@@ -401,6 +472,7 @@ local function Shutdown()
 	end
 	
 	gadgetHandler.RemoveSyncAction("changeBlockList")
+	gadgetHandler.RemoveSyncAction("UpdateAll")
 	gadgetHandler.RemoveSyncAction("Shutdown")
 end
 
@@ -415,7 +487,9 @@ function gadget:Initialize()
 	--	end
 	--end
 	
+	
 	gadgetHandler:AddSyncAction("changeBlockList", changeBlockList)
+	gadgetHandler:AddSyncAction("UpdateAll", UpdateAll)
 	gadgetHandler:AddSyncAction("Shutdown", Shutdown)
 end
 

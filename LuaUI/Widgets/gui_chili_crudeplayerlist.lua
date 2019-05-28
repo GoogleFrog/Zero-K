@@ -9,16 +9,18 @@ function widget:GetInfo()
     date      = "2011-01-06",
     license   = "GNU GPL, v2 or later",
     layer     = 50,
-    enabled   = true,
+    enabled   = false,
   }
 end
 
+if Spring.GetModOptions().singleplayercampaignbattleid then
+	return
+end
+
+VFS.Include ("LuaRules/Utilities/lobbyStuff.lua")
+
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
-local spSendCommands			= Spring.SendCommands
-
-local echo = Spring.Echo
-
 local Chili
 local Image
 local Button
@@ -52,7 +54,7 @@ local white		= ''
 local function IsFFA()
 	local allyteams = Spring.GetAllyTeamList()
 	local gaiaT = Spring.GetGaiaTeamID()
-	local gaiaAT = select(6, Spring.GetTeamInfo(gaiaT))
+	local gaiaAT = select(6, Spring.GetTeamInfo(gaiaT, false))
 	local numAllyTeams = 0
 	for i=1,#allyteams do
 		if allyteams[i] ~= gaiaAT then
@@ -65,7 +67,7 @@ local function IsFFA()
 	return numAllyTeams > 2
 end
 	
-local cf = Spring.GetModOptions().noceasefire ~= "1" and IsFFA()
+local cf = (not Spring.FixedAllies()) and IsFFA()
 
 if not WG.rzones then
 	WG.rzones = {
@@ -124,13 +126,13 @@ include("keysym.h.lua")
 function SetupPlayerNames() end
 
 options_path = 'Settings/HUD Panels/Player List'
-options_order = {'text_height', 'backgroundOpacity', 'reset_wins','alignToTop','showSpecs','allyTeamPerTeam','debugMessages','mousewheel','win_show_condition'}
+options_order = {'text_height', 'backgroundOpacity', 'reset_wins', 'inc_wins_1', 'inc_wins_2','alignToTop','showSpecs','allyTeamPerTeam','debugMessages','mousewheel','win_show_condition'}
 options = {
 	text_height = {
 		name = 'Font Size (10-18)',
 		type = 'number',
 		value = 13,
-		min=10,max=18,step=1,
+		min = 10, max = 18, step = 1,
 		OnChange = function() SetupPlayerNames() end,
 		advanced = true
 	},
@@ -149,8 +151,37 @@ options = {
 		desc = "Reset the win counts of all players",
 		type = 'button',
 		OnChange = function() 
-		if WG.WinCounter_Reset ~= nil then WG.WinCounter_Reset() end 
+			if WG.WinCounter_Reset ~= nil then 
+				WG.WinCounter_Reset()
+				SetupPlayerNames()
+			end 
 		end,
+	},	
+	inc_wins_1 = {
+		name = "Increment Team 1 Wins",
+		desc = "",
+		type = 'button',
+		OnChange = function()
+			if WG.WinCounter_Increment ~= nil then 
+				local allyTeams = Spring.GetAllyTeamList()
+				WG.WinCounter_Increment(allyTeams[1]) 
+				SetupPlayerNames()
+			end
+		end,
+		advanced = true
+	},
+	inc_wins_2 = {
+		name = "Increment Team 2 Wins",
+		desc = "",
+		type = 'button',
+		OnChange = function()
+			if WG.WinCounter_Increment ~= nil then 
+				local allyTeams = Spring.GetAllyTeamList()
+				WG.WinCounter_Increment(allyTeams[2]) 
+				SetupPlayerNames()
+			end
+		end,
+		advanced = true
 	},
 	win_show_condition = {
 		name = 'Show Wins',
@@ -219,7 +250,7 @@ local function ShareUnits(playername, team)
 		end]]
 		Spring.ShareResources(team, "units")     
 	else
-		echo 'Player List: No units selected to share.'
+		Spring.Echo('Player List: No units selected to share.')
 	end
 end
 
@@ -275,8 +306,8 @@ local function CfTooltip(allyTeam)
 	tooltip = tooltip .. 'Your team\'s votes: \n'
 	local teamList = Spring.GetTeamList(localAlliance)
 	for _,teamID in ipairs(teamList) do
-		local _,playerID = Spring.GetTeamInfo(teamID)
-		local name = Spring.GetPlayerInfo(playerID) or '-'
+		local _,playerID = Spring.GetTeamInfo(teamID, false)
+		local name = Spring.GetPlayerInfo(playerID, false) or '-'
 		local vote = Spring.GetTeamRulesParam(teamID, 'cf_vote_' ..allyTeam)==1 and green..'Y'..white or red..'N'..white
 		local teamColor = color2incolor(Spring.GetTeamColor(teamID))
 		tooltip = tooltip .. teamColor .. ' <' .. name .. '> ' .. white.. vote ..'\n'
@@ -302,8 +333,8 @@ local function MakeSpecTooltip()
 	local players = Spring.GetPlayerList()
 	
 	local specsSorted = {}
-	for i=1,#players do
-		local name,active,spectator,teamID,allyTeamID,pingTime,cpuUsage = Spring.GetPlayerInfo(players[i])
+	for i = 1, #players do
+		local name, active, spectator, teamID, allyTeamID, pingTime, cpuUsage = Spring.GetPlayerInfo(players[i], false)
 		if spectator and active then
 			specsSorted[#specsSorted + 1] = {name = name, ping = pingTime, cpu = math.min(cpuUsage,1)}
 			--specsSorted[#specsSorted + 1] = {name = name, ping = pingTime, cpu = cpuUsage}
@@ -326,22 +357,20 @@ end
 
 -- updates ping and CPU for all players; name if needed
 local function UpdatePlayerInfo()
-	for i=1,#entities do
+	for i = 1, #entities do
 		if not entities[i].isAI then
 			local playerID = entities[i].playerID
-			local name,active,spectator,teamID,allyTeamID,pingTime,cpuUsage = Spring.GetPlayerInfo(playerID)
+			local name, active, spectator, teamID, allyTeamID, pingTime, cpuUsage = Spring.GetPlayerInfo(playerID, false)
+			--Spring.Echo("Player Update", playerID, name, active, spectator, teamID, allyTeamID, pingTime, cpuUsage, #(Spring.GetPlayerList(teamID, true)))
 			
 			local name_out = name or ''
-			if name_out == ''
-				or #(Spring.GetPlayerList(teamID,true)) == 0
-				or spectator and not entities[i].isSpec
-			then
+			if name_out == '' or #(Spring.GetPlayerList(teamID, true)) == 0 or (spectator and not entities[i].isSpec) or Spring.GetTeamRulesParam(teamID, "isDead") == 1 then
 				if Spring.GetGameSeconds() < 0.1 or cpuUsage > 1 then
 					name_out = "<Waiting> " ..(name or '')
-				elseif Spring.GetTeamUnitCount(teamID) > 0  then
-					name_out = "<Aband. units> " ..(name or '')
+				elseif Spring.GetTeamUnitCount(teamID) > 0 then
+					name_out = "<Aband. units> " .. (name or '')
 				else
-					name_out = "<Dead> " ..(name or '')
+					name_out = "<Dead> " .. (name or '')
 				end
 			end
 			if entities[i].nameLabel then 
@@ -354,31 +383,41 @@ local function UpdatePlayerInfo()
 				cpuUsage = cpuUsage or 0
 				local min_pingTime = math.min(pingTime, 1)
 				local min_cpuUsage = math.min(cpuUsage, 1)
-				local cpuCol = pingCpuColors[ math.ceil( min_cpuUsage * 5 ) ] 
-				local pingCol = pingCpuColors[ math.ceil( min_pingTime * 5 ) ]
+				local cpuColIndex = math.ceil( min_cpuUsage * 5 )
+				local pingColIndex = math.ceil( min_pingTime * 5 )
 				local pingTime_readable = PingTimeOut(pingTime)
-				
 				local blank = not active
 				
 				local cpuImg = entities[i].cpuImg
 				if cpuImg then
-					cpuImg.color = cpuCol
 					cpuImg.tooltip = (blank and nil or 'CPU: ' .. math.round(cpuUsage*100) .. '%')
-					cpuImg:Invalidate()
+					if cpuColIndex ~= entities[i].cpuIndexOld then
+						entities[i].cpuIndexOld = cpuColIndex
+						cpuImg.color = pingCpuColors[cpuColIndex]
+						cpuImg:Invalidate()
+					end
 				end
+				
 				local pingImg = entities[i].pingImg
 				if pingImg then
-					pingImg.color = pingCol
 					pingImg.tooltip = (blank and nil or 'Ping: ' .. pingTime_readable)
-					pingImg:Invalidate()
+					if pingColIndex ~= entities[i].pingIndexOld then
+						entities[i].pingIndexOld = pingColIndex
+						pingImg.color = pingCpuColors[pingColIndex]
+						pingImg:Invalidate()
+					end
 				end
 			end
 
 			local wins = 0
-			if name ~= nil and WG.WinCounter_currentWinTable ~= nil and WG.WinCounter_currentWinTable[name] ~= nil then wins = WG.WinCounter_currentWinTable[name].wins end
-			if entities[i].winsLabel then entities[i].winsLabel:SetCaption(wins) end
-		end	-- if not isAI
-	end	-- for entities
+			if name ~= nil and WG.WinCounter_currentWinTable ~= nil and WG.WinCounter_currentWinTable[name] ~= nil then
+				wins = WG.WinCounter_currentWinTable[name].wins
+			end
+			if entities[i].winsLabel then
+				entities[i].winsLabel:SetCaption(wins)
+			end
+		end -- if not isAI
+	end -- for entities
 	MakeSpecTooltip()
 	
 	for allyTeam, cb in pairs(cfCheckBoxes) do
@@ -445,10 +484,10 @@ local function AddEntity(entity, teamID, allyTeamID)
 		deadTeam = true
 	end	
 	
-	local name,active,spectator,pingTime,cpuUsage,country,rank, customKeys
+	local name,active,spectator,pingTime,cpuUsage,country,_, customKeys
 	local playerID = entity.playerID or teams[teamID].leader
 	if playerID then
-		name,active,spectator,_,_,pingTime,cpuUsage,country,rank, customKeys = Spring.GetPlayerInfo(playerID)
+		name,active,spectator,_,_,pingTime,cpuUsage,country,_, customKeys = Spring.GetPlayerInfo(playerID)
 	end
 	--Spring.Echo("Entity with team ID " .. teamID .. " is " .. (active and '' or "NOT ") .. "active")
 	if not active then deadTeam = true end
@@ -477,13 +516,7 @@ local function AddEntity(entity, teamID, allyTeamID)
 		elseif (customKeys.faction~=nil and customKeys.faction~="") then
 			icon = "LuaUI/Configs/Factions/" .. customKeys.faction ..".png"
 		end 
-		if customKeys.level ~= nil and customKeys.level~="" then 
-			local level = 1+math.floor((customKeys.level or 0)/10)
-			if level > 9 then 
-				level = 9
-			end 
-			icRank = "LuaUI/Images/Ranks/" .. level .. ".png"
-		end
+		icRank = "LuaUI/Images/LobbyRanks/" .. (customKeys.icon or "0_0") .. ".png"
 	end
 	
 	local min_pingTime = math.min(pingTime, 1)
@@ -667,10 +700,16 @@ end
 
 local function AlignScrollPanel()
 	--push things to bottom of window if needed
-	local height = math.ceil(row * (options.text_height.value+1.5) + 8)
-	scroll_cpl.height = math.min(height, window_cpl.height)
+	local height = math.ceil(row * (options.text_height.value+1.5) + 10)
+	if height < window_cpl.height then
+		scroll_cpl.height = height
+		scroll_cpl.verticalScrollbar = false
+	else
+		scroll_cpl.height = window_cpl.height
+		scroll_cpl.verticalScrollbar = true
+	end
 	if not (options.alignToTop.value) then
-		scroll_cpl.y = (window_cpl.height) - scroll_cpl.height
+		scroll_cpl.y = (window_cpl.height) - scroll_cpl.height - 2
 	else
 		scroll_cpl.y = 0
 	end
@@ -705,16 +744,16 @@ SetupPlayerNames = function()
 	local allyTeamsSorted = Spring.GetAllyTeamList()
 	
 	local myID = Spring.GetMyPlayerID()
-	local myName = Spring.GetPlayerInfo(myID)
+	local myName = Spring.GetPlayerInfo(myID, false)
 	localTeam = Spring.GetMyTeamID()
 	localAlliance = Spring.GetMyAllyTeamID()
 	
 	-- register any AIs as entities, assign teams to allyTeams
-	for i=1,#teamsSorted do
+	for i = 1, #teamsSorted do
 		local teamID = teamsSorted[i]
 		if teamID ~= Spring.GetGaiaTeamID() then
 			teams[teamID] = teams[teamID] or {roster = {}}
-			local _,leader,isDead,isAI,_,allyTeamID = Spring.GetTeamInfo(teamID)
+			local _,leader,isDead,isAI,_,allyTeamID = Spring.GetTeamInfo(teamID, false)
 			if isAI then
 				local skirmishAIID, name, hostingPlayerID, shortName, version, options = Spring.GetAIInfo(teamID)
 				name = '<'.. name ..'> '.. shortName
@@ -730,12 +769,13 @@ SetupPlayerNames = function()
 	end --for each team
 
 	-- go through all players, register as entities, assign to teams
-	for i=1, #playerlist do
+	for i = 1, #playerlist do
 		local playerID = playerlist[i]
-		local name,active,spectator,teamID,allyTeamID,pingTime,cpuUsage,country,rank = Spring.GetPlayerInfo(playerID)
+		local name, active, spectator, teamID, allyTeamID, pingTime, cpuUsage, country = Spring.GetPlayerInfo(playerID, false)
+		local isSpec = (teamID == 0 and spectator and Spring.GetPlayerRulesParam(playerID, "initiallyPlayingPlayer") ~= 1)
 		local entityID = #entities + 1
-		entities[entityID] = {name = name, isSpec = spectator, playerID = playerID, teamID = teamID}--(not spectator) and teamID or nil}
-		if teamID == 0 and not spectator or teamID ~= 0 then
+		entities[entityID] = {name = name, isSpec = isSpec, playerID = playerID, teamID = teamID}--(not spectator) and teamID or nil}
+		if not isSpec then
 			local index = #teams[teamID].roster + 1
 			teams[teamID].roster[index] = entities[entityID]
 		end
@@ -745,14 +785,16 @@ SetupPlayerNames = function()
 	end
 	
 	-- sort allyteams: own at top, others in order
-	table.sort(allyTeamsSorted, function(a,b)
+	table.sort(allyTeamsSorted, 
+		function(a,b)
 			if a == localAlliance then return true
 			elseif b == localAlliance then return false end
 			return a < b
-		end)
+		end
+	)
 	
 	row = 1
-	for i=1,#allyTeamsSorted do
+	for i = 1, #allyTeamsSorted do
 		AddAllyTeam(allyTeamsSorted[i])
 	end
 
@@ -847,7 +889,7 @@ end
 -----------------------------------------------------------------------
 
 function widget:Initialize()
-	if (not WG.Chili) then
+	if not WG.Chili then
 		widgetHandler:RemoveWidget()
 		return
 	end
@@ -874,6 +916,7 @@ function widget:Initialize()
 
 	-- Set the size for the default settings.
 	local screenWidth,screenHeight = Spring.GetWindowGeometry()
+	local x_bound = 310
 	
 	window_cpl = Window:New{  
 		dockable = true,
@@ -883,14 +926,13 @@ function widget:Initialize()
 		bottom = 0,
 		width  = x_bound,
 		height = 150,
-		padding = {8, 2, 8, 2};
+		padding = {8, 2, 2, 2};
 		--autosize   = true;
 		parent = screen0,
 		draggable = false,
 		resizable = false,
 		tweakDraggable = true,
 		tweakResizable = true,
-		minimizable = true,
 		parentWidgetName = widget:GetInfo().name, --for gui_chili_docking.lua (minimize function)
 		minWidth = x_bound,
 	}

@@ -9,7 +9,7 @@ function gadget:GetInfo()
     date      = "2013-2-2",
     license   = "Public Domain",
     layer     = 0,
-    enabled   = not ((Game.version:find('91.0') == 1) and (Game.version:find('91.0.1') == nil))
+    enabled   = true
   }
 end
 
@@ -25,18 +25,17 @@ local spGetUnitPiecePosDir  = Spring.GetUnitPiecePosDir
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
 local units = {
-  [UnitDefNames.armrectr.id] = {"claw1"},
-  [UnitDefNames.corfast.id] = {"flare"},
-  [UnitDefNames.corned.id] = {"firepoint"},
-  [UnitDefNames.coracv.id] = {"nano1", "nano2"},
-  [UnitDefNames.corch.id] = {"beam"},
+  [UnitDefNames.cloakcon.id] = {"claw1"},
+  [UnitDefNames.jumpcon.id] = {"flare"},
+  [UnitDefNames.vehcon.id] = {"firepoint"},
+  [UnitDefNames.tankcon.id] = {"nano1", "nano2"},
+  [UnitDefNames.hovercon.id] = {"beam"},
   [UnitDefNames.shipcon.id] = {"beam"},
   
   [UnitDefNames.factorycloak.id] = {"claw1"},
   [UnitDefNames.factoryshield.id] = {"nanoemit"},
   [UnitDefNames.factoryspider.id] = {"nanoemit"},
   [UnitDefNames.factoryamph.id] = {"nanoemit"},
-  [UnitDefNames.factoryveh.id] = {"beam1", "beam2", "beam3", "beam4"},
   [UnitDefNames.factoryhover.id] = {"beam1", "beam2", "beam3", "beam4", "beam5", "beam6"},
   [UnitDefNames.factorygunship.id] = {"beam1", "beam2"},
 }

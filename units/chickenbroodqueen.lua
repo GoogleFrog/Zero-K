@@ -35,7 +35,6 @@ unitDef = {
 
   buildPic            = [[chickenbroodqueen.png]],
   buildTime           = 1000,
-  canAttack           = true,
   CanBeAssisted       = 0,
   canGuard            = true,
   canMove             = true,
@@ -43,19 +42,10 @@ unitDef = {
   canSubmerge         = true,
   cantBeTransported   = true,
   category            = [[LAND]],
-  commander           = true,
 
   customParams        = {
-    description_fr = [[Reine pondeuse]],
-	description_de = [[Pflegt und hegt das Nest]],
-	description_pl = [[Dba o Kurnik]],
-    helptext       = [[The egg-laying brood queen is not quite as fearsome in combat as the other queen, but can in the long run present an even bigger threat. It produces all the different chicken breeds of the Thunderbirds.]],
-    helptext_fr    = [[Cette reine pondeuse n'est pas aussi effrayante en combat que l'autre reine mais peut ? long terme se montrer une menace bien plus grande. En ?ffet elle peut engendrer rapidement par elle-m?me toutes les unit?s poulet.]],
-	helptext_de    = [[Die eierlegende, brütende Königin ist im Gefecht nicht ganz so furchterregend wie die anderen Königinnen, aber auf weite Sicht kann sie sogar eine größere Gefahr darstellen. Sie erzeugt all die verschiedenen Chickenrassen der Thunderbirds.]],
-	helptext_pl    = [[Matka roju - zajmuje sie skladaniem i ochrona jajek, a zatem bierze glowny udzial w tworzeniu sil zbrojnych Kurczakow.]],
   },
 
-  energyStorage       = 0,
   explodeAs           = [[SMALL_UNITEX]],
   footprintX          = 4,
   footprintZ          = 4,
@@ -63,13 +53,10 @@ unitDef = {
   idleAutoHeal        = 0,
   idleTime            = 300,
   leaveTracks         = true,
-  mass                = 712,
   maxDamage           = 3000,
   maxSlope            = 72,
   maxVelocity         = 2,
   maxWaterDepth       = 22,
-  metalMake           = 0.4,
-  metalStorage        = 0,
   minCloakDistance    = 75,
   movementClass       = [[TKBOT3]],
   noAutoFire          = false,
@@ -77,7 +64,6 @@ unitDef = {
   objectName          = [[chickenbroodqueen.s3o]],
   power               = 2500,
   reclaimable         = false,
-  seismicSignature    = 4,
   selfDestructAs      = [[SMALL_UNITEX]],
 
   sfxtypes            = {
@@ -92,11 +78,8 @@ unitDef = {
 
   showNanoSpray       = false,
   showPlayerName      = true,
-  side                = [[THUNDERBIRDS]],
   sightDistance       = 1024,
-  smoothAnim          = true,
   sonarDistance       = 450,
-  TEDClass            = [[COMMANDER]],
   trackOffset         = 8,
   trackStrength       = 8,
   trackStretch        = 1,
@@ -155,7 +138,6 @@ unitDef = {
       impulseBoost            = 0,
       impulseFactor           = 1,
       interceptedByShieldType = 0,
-      lineOfSight             = true,
       noSelfDamage            = true,
       range                   = 120,
       reloadtime              = 0.4,
@@ -171,7 +153,7 @@ unitDef = {
 
 
     SPORES = {
-      name                    = [[Missiles]],
+      name                    = [[Spores]],
       areaOfEffect            = 24,
       avoidFriendly           = false,
       burst                   = 4,
@@ -179,7 +161,11 @@ unitDef = {
       collideFriendly         = false,
       craterBoost             = 0,
       craterMult              = 0,
-
+      
+      customParams            = {
+        light_radius = 0,
+      },
+      
       damage                  = {
         default = 30,
         subs    = 1.5,
@@ -190,24 +176,18 @@ unitDef = {
       fireStarter             = 0,
       flightTime              = 4,
       groundbounce            = 1,
-      guidance                = true,
       heightmod               = 0.5,
       impactOnly              = true,
       impulseBoost            = 0,
       impulseFactor           = 0.4,
       interceptedByShieldType = 2,
-      lineOfSight             = true,
       metalpershot            = 0,
       model                   = [[chickeneggpink.s3o]],
       noSelfDamage            = true,
       range                   = 240,
       reloadtime              = 3,
-      renderType              = 1,
-      selfprop                = true,
-      smokedelay              = [[0.1]],
       smokeTrail              = true,
       soundHit                = [[explosion/ex_med14]],
-      startsmoke              = [[1]],
       startVelocity           = 200,
       texture1                = [[]],
       texture2                = [[sporetrail]],

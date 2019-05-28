@@ -10,10 +10,6 @@ function gadget:GetInfo()
   }
 end
 
-if not tobool(Spring.GetModOptions().marketandbounty) then
-	return
-end 
-
 local echo 				= Spring.Echo
 
 
@@ -24,8 +20,6 @@ local echo 				= Spring.Echo
 if (gadgetHandler:IsSyncedCode()) then 
 -------------------------------------------------------------------------------------
 -------------------------------------------------------------------------------------
-
-local spGetAllyTeamList		= Spring.GetAllyTeamList
 
 local bank = {}
 local blockspend = {}

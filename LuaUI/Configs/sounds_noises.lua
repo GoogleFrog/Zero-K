@@ -10,12 +10,12 @@ local sounds = {
 			[1] = "light_bot_select",
 		},
 	},
-	armasp = {
+	staticrearm = {
 		select = {
 			[1] = "building_select1",
 		},
 	},
-	armcsa = {
+	athena = {
 		build = "builder_start",
 		ok = {
 			[1] = "gunship_move",
@@ -76,7 +76,7 @@ local sounds = {
 			[1] = "bot_select",
 		},
 	},
-	armcomdgun = {
+	striderantiheavy = {
 		build = "builder_start",
 		ok = {
 			[1] = "heavy_bot_move",
@@ -87,10 +87,11 @@ local sounds = {
 	},
 	
 	-- Spider
-	arm_spider = {
+	spidercon = {
 		build = "builder_start",
 		ok = {
 			[1] = "spider_move",
+			volume = 0.95,
 		},
 		select = {
 			[1] = "spider_select2",
@@ -99,12 +100,14 @@ local sounds = {
 	spiderassault = {
 		ok = {
 			[1] = "spider_move",
+			volume = 0.95,
 		},
 		select = {
 			[1] = "spider_select",
+			volume = 0.95,
 		},
 	},
-	armflea = {
+	spiderscout = {
 		ok = {
 			[1] = "light_bot_move",
 		},
@@ -112,40 +115,48 @@ local sounds = {
 			[1] = "crawlie_select",
 		},
 	},
-	armsptk = {
+	spiderskirm = {
 		ok = {
 			[1] = "spider_move",
+			volume = 0.95,
 		},
 		select = {
 			[1] = "spider_select",
+			volume = 0.95,
 		},
 	},
 	spiderriot = {
 		ok = {
 			[1] = "spider_move",
+			volume = 0.95,
 		},
 		select = {
 			[1] = "spider_select",
+			volume = 0.95,
 		},
 	},
-	arm_venom = {
+	spideremp = {
 		ok = {
 			[1] = "spider_move",
+			volume = 0.95,
 		},
 		select = {
 			[1] = "spider_select",
+			volume = 0.95,
 		},
 	},
 	spideraa = {
 		ok = {
 			[1] = "spider_move",
+			volume = 0.95,
 		},
 		select = {
 			[1] = "spider_select",
+			volume = 0.95,
 		},
 	},
 
-	armcrabe = {
+	spidercrabe = {
 		ok = {
 			[1] = "heavy_bot_move",
 		},
@@ -153,7 +164,7 @@ local sounds = {
 			[1] = "bot_select",
 		},
 	},
-	armspy = {
+	spiderantiheavy = {
 		ok = {
 			[1] = "spy_move",
 		},
@@ -163,7 +174,7 @@ local sounds = {
 	},
 	
 	-- Shield
-	cornecro = {
+	shieldcon = {
 		build = "builder_start",
 		ok = {
 			[1] = "bot_move",
@@ -172,7 +183,7 @@ local sounds = {
 			[1] = "light_bot_select2",
 		},
 	},
-	corclog = {
+	shieldscout = {
 		ok = {
 			[1] = "bot_move",
 		},
@@ -180,7 +191,7 @@ local sounds = {
 			[1] = "bot_select",
 		},
 	},
-	corak = {
+	shieldraid = {
 		ok = {
 			[1] = "bot_move",
 		},
@@ -188,7 +199,7 @@ local sounds = {
 			[1] = "bot_select",
 		},
 	},
-	corstorm = {
+	shieldskirm = {
 		ok = {
 			[1] = "bot_move",
 		},
@@ -196,7 +207,7 @@ local sounds = {
 			[1] = "bot_select",
 		},
 	},
-	corthud = {
+	shieldassault = {
 		ok = {
 			[1] = "bot_move",
 		},
@@ -204,7 +215,7 @@ local sounds = {
 			[1] = "bot_select",
 		},
 	},
-	corroach = {
+	shieldbomb = {
 		ok = {
 			[1] = "light_bot_move",
 		},
@@ -212,7 +223,7 @@ local sounds = {
 			[1] = "crawlie_select",
 		},
 	},
-	cormak = {
+	shieldriot = {
 		ok = {
 			[1] = "bot_move",
 		},
@@ -220,7 +231,7 @@ local sounds = {
 			[1] = "bot_select",
 		},
 	},
-	corcrash = {
+	shieldaa = {
 		ok = {
 			[1] = "bot_move",
 		},
@@ -246,7 +257,7 @@ local sounds = {
 	},
 	
 	-- Jumper
-	corfast = {
+	jumpcon = {
 		build = "builder_start",
 		ok = {
 			[1] = "bot_move",
@@ -256,7 +267,7 @@ local sounds = {
 		},
 	},
 	
-	puppy = {
+	jumpscout = {
 		ok = {
 			[1] = "light_bot_move",
 		},
@@ -264,7 +275,7 @@ local sounds = {
 			[1] = "crawlie_select",
 		},
 	},
-	slowmort = {
+	jumpskirm = {
 		ok = {
 			[1] = "bot_move",
 		},
@@ -272,7 +283,7 @@ local sounds = {
 			[1] = "bot_select",
 		},
 	},
-	corsumo = {
+	jumpsumo = {
 		ok = {
 			[1] = "heavy_bot_move",
 		},
@@ -280,7 +291,7 @@ local sounds = {
 			[1] = "bot_select",
 		},
 	},
-	firewalker = {
+	jumparty = {
 		ok = {
 			[1] = "heavy_bot_move",
 		},
@@ -288,7 +299,7 @@ local sounds = {
 			[1] = "bot_select",
 		},
 	},
-	corpyro = {
+	jumpraid = {
 		ok = {
 			[1] = "bot_move",
 		},
@@ -312,7 +323,7 @@ local sounds = {
 			[1] = "bot_select",
 		},
 	},
-	corcan = {
+	jumpassault = {
 		ok = {
 			[1] = "bot_move",
 		},
@@ -320,7 +331,7 @@ local sounds = {
 			[1] = "bot_select",
 		},
 	},
-	armaak = {
+	jumpaa = {
 		ok = {
 			[1] = "bot_move",
 		},
@@ -328,7 +339,7 @@ local sounds = {
 			[1] = "bot_select",
 		},
 	},
-	corsktl = {
+	jumpbomb = {
 		ok = {
 			[1] = "light_bot_move",
 		},
@@ -338,7 +349,7 @@ local sounds = {
 	},
 	
 	-- Cloak
-	armrectr = {
+	cloakcon = {
 		build = "builder_start",
 		ok = {
 			[1] = "bot_move",
@@ -348,7 +359,7 @@ local sounds = {
 		},
 	},
 	
-	armsnipe = {
+	cloaksnipe = {
 		ok = {
 			[1] = "spy_move",
 		},
@@ -356,7 +367,7 @@ local sounds = {
 			[1] = "spy_select",
 		},
 	},
-	armpw = {
+	cloakraid = {
 		ok = {
 			[1] = "light_bot_move",
 		},
@@ -364,7 +375,7 @@ local sounds = {
 			[1] = "light_bot_select",
 		},
 	},
-	spherepole = {
+	cloakheavyraid = {
 		ok = {
 			[1] = "spy_move",
 		},
@@ -372,7 +383,7 @@ local sounds = {
 			[1] = "spy_select",
 		},
 	},
-	armrock = {
+	cloakskirm = {
 		ok = {
 			[1] = "bot_move",
 		},
@@ -380,7 +391,7 @@ local sounds = {
 			[1] = "medium_bot_select",
 		},
 	},
-	armzeus = {
+	cloakassault = {
 		ok = {
 			[1] = "bot_move",
 		},
@@ -388,7 +399,7 @@ local sounds = {
 			[1] = "medium_bot_select",
 		},
 	},
-	armtick = {
+	cloakbomb = {
 		ok = {
 			[1] = "light_bot_move",
 		},
@@ -396,7 +407,7 @@ local sounds = {
 			[1] = "crawlie_select",
 		},
 	},
-	armwar = {
+	cloakriot = {
 		ok = {
 			[1] = "bot_move",
 		},
@@ -404,7 +415,7 @@ local sounds = {
 			[1] = "medium_bot_select",
 		},
 	},
-	armham = {
+	cloakarty = {
 		ok = {
 			[1] = "bot_move",
 		},
@@ -412,7 +423,7 @@ local sounds = {
 			[1] = "medium_bot_select",
 		},
 	},
-	armjeth = {
+	cloakaa = {
 		ok = {
 			[1] = "bot_move",
 		},
@@ -426,73 +437,99 @@ local sounds = {
 		build = "builder_start",
 		ok = {
 			[1] = "amph_move",
+			volume = 0.8,
 		},
 		select = {
 			[1] = "amph_select",
-			volume = 0.7,
+			volume = 0.6,
 		},
 	},
-	amphraider2 = {
+	amphimpulse = {
 		ok = {
 			[1] = "amph_move",
+			volume = 0.8,
 		},
 		select = {
 			[1] = "amph_select",
-			volume = 0.7,
+			volume = 0.6,
 		},
 	},
-	amphraider3 = {
+	amphraid = {
 		ok = {
 			[1] = "amph_move",
+			volume = 0.8,
 		},
 		select = {
 			[1] = "amph_select",
-			volume = 0.7,
+			volume = 0.6,
 		},
 	},
 	amphfloater = {
 		ok = {
 			[1] = "amph_move",
+			volume = 0.8,
 		},
 		select = {
 			[1] = "amph_select",
-			volume = 0.7,
+			volume = 0.6,
 		},
 	},
 	amphriot = {
 		ok = {
 			[1] = "amph_move",
+			volume = 0.8,
 		},
 		select = {
 			[1] = "amph_select",
-			volume = 0.7,
+			volume = 0.6,
 		},
 	},
 	amphassault = {
 		ok = {
 			[1] = "amph_move",
+			volume = 0.8,
 		},
 		select = {
 			[1] = "amph_select",
+			volume = 0.6,
+		},
+	},
+	amphlaunch = {
+		ok = {
+			[1] = "amph_move",
+			volume = 0.8,
+		},
+		select = {
+			[1] = "teleport_select",
 			volume = 0.7,
 		},
 	},
 	amphaa = {
 		ok = {
 			[1] = "amph_move",
+			volume = 0.8,
 		},
 		select = {
 			[1] = "amph_select",
-			volume = 0.7,
+			volume = 0.6,
 		},
 	},
 	amphtele = {
 		ok = {
 			[1] = "amph_move",
+			volume = 0.8,
 		},
 		select = {
 			[1] = "teleport_select",
 			volume = 0.7,
+		},
+	},
+	amphbomb = {
+		ok = {
+			[1] = "light_bot_move",
+		},
+		select = {
+			[1] = "crawlie_select",
 		},
 	},
 	
@@ -505,7 +542,7 @@ local sounds = {
 			[1] = "heavy_bot_move",
 		},
 	},
-	dante = {
+	striderdante = {
 		ok = {
 			[1] = "heavy_bot_move",
 		},
@@ -513,7 +550,7 @@ local sounds = {
 			[1] = "heavy_bot_move",
 		},
 	},
-	funnelweb = {
+	striderfunnelweb = {
 		ok = {
 			[1] = "heavy_bot_move",
 		},
@@ -521,31 +558,25 @@ local sounds = {
 			[1] = "heavy_bot_move",
 		},
 	},
-	armbanth = {
+	striderbantha = {
 		ok = {
 			[1] = "turret_select",
-		},
-		select = {
-			[1] = "turret_select",
-		},
-	},
-	armraven = {
-		ok = {
-			[1] = "heavy_bot_move",
-		},
-		select = {
-			[1] = "heavy_bot_move",
-		},
-	},
-	gorg = {
-		ok = {
-			[1] = "turret_select",
+			volume = 0.7,
 		},
 		select = {
 			[1] = "turret_select",
+			volume = 0.7,
 		},
 	},
-	scorpion = {
+	striderarty = {
+		ok = {
+			[1] = "heavy_bot_move",
+		},
+		select = {
+			[1] = "heavy_bot_move",
+		},
+	},
+	striderscorpion = {
 		ok = {
 			[1] = "spy_move",
 		},
@@ -553,12 +584,14 @@ local sounds = {
 			[1] = "spy_select",
 		},
 	},
-	armorco = {
+	striderdetriment = {
 		ok = {
 			[1] = "turret_select",
+			volume = 0.7,
 		},
 		select = {
 			[1] = "turret_select",
+			volume = 0.7,
 		},
 	},
 	nebula = {
@@ -567,11 +600,12 @@ local sounds = {
 		},
 		select = {
 			[1] = "heavy_gunship_select",
+			volume = 0.8,
 		},
 	},
 	
 	-- Vehicle
-	corned = {
+	vehcon = {
 		build = "builder_start",
 		ok = {
 			[1] = "vehicle_move",
@@ -580,7 +614,7 @@ local sounds = {
 			[1] = "vehicle_select2",
 		},
 	},
-	corfav = {
+	vehscout = {
 		ok = {
 			[1] = "vehicle_move",
 		},
@@ -588,7 +622,7 @@ local sounds = {
 			[1] = "vehicle_select2",
 		},
 	},
-	cormist = {
+	vehsupport = {
 		ok = {
 			[1] = "vehicle_move",
 		},
@@ -596,7 +630,7 @@ local sounds = {
 			[1] = "vehicle_select2",
 		},
 	},
-	corgator = {
+	vehraid = {
 		ok = {
 			[1] = "vehicle_move",
 		},
@@ -604,7 +638,7 @@ local sounds = {
 			[1] = "vehicle_select2",
 		},
 	},
-	corgarp = {
+	veharty = {
 		ok = {
 			[1] = "vehicle_move",
 		},
@@ -612,7 +646,7 @@ local sounds = {
 			[1] = "vehicle_select2",
 		},
 	},
-	corlevlr = {
+	vehriot = {
 		ok = {
 			[1] = "vehicle_move",
 		},
@@ -620,7 +654,7 @@ local sounds = {
 			[1] = "vehicle_select2",
 		},
 	},
-	corraid = {
+	vehassault = {
 		ok = {
 			[1] = "vehicle_move",
 		},
@@ -628,7 +662,7 @@ local sounds = {
 			[1] = "vehicle_select2",
 		},
 	},
-	capturecar = {
+	vehcapture = {
 		ok = {
 			[1] = "vehicle_move",
 		},
@@ -646,7 +680,7 @@ local sounds = {
 	},
 	
 	-- Tank
-	coracv = {
+	tankcon = {
 		build = "builder_start",
 		ok = {
 			[1] = "light_tank_move2",
@@ -655,7 +689,7 @@ local sounds = {
 			[1] = "tank_select",
 		},
 	},
-	panther = {
+	tankheavyraid = {
 		ok = {
 			[1] = "light_tank_move2",
 		},
@@ -663,7 +697,7 @@ local sounds = {
 			[1] = "tank_select",
 		},
 	},
-	logkoda = {
+	tankraid = {
 		ok = {
 			[1] = "light_tank_move2",
 		},
@@ -679,7 +713,7 @@ local sounds = {
 			[1] = "tank_select",
 		},
 	},
-	cormart = {
+	tankarty = {
 		ok = {
 			[1] = "tank_move",
 		},
@@ -687,7 +721,7 @@ local sounds = {
 			[1] = "tank_select",
 		},
 	},
-	correap = {
+	tankassault = {
 		ok = {
 			[1] = "tank_move",
 		},
@@ -695,7 +729,7 @@ local sounds = {
 			[1] = "tank_select",
 		},
 	},
-	armmerl = {
+	vehheavyarty = {
 		ok = {
 			[1] = "tank_move",
 		},
@@ -703,7 +737,7 @@ local sounds = {
 			[1] = "tank_select",
 		},
 	},
-	trem = {
+	tankheavyarty = {
 		ok = {
 			[1] = "tank_move",
 		},
@@ -711,7 +745,7 @@ local sounds = {
 			[1] = "tank_select",
 		},
 	},
-	tawf114 = {
+	tankriot = {
 		ok = {
 			[1] = "tank_move",
 		},
@@ -719,7 +753,7 @@ local sounds = {
 			[1] = "tank_select",
 		},
 	},
-	corgol = {
+	tankheavyassault = {
 		ok = {
 			[1] = "tank_move",
 		},
@@ -727,7 +761,7 @@ local sounds = {
 			[1] = "tank_select",
 		},
 	},
-	corsent = {
+	tankaa = {
 		ok = {
 			[1] = "tank_move",
 		},
@@ -737,7 +771,7 @@ local sounds = {
 	},
 	
 	-- Hovercraft
-	corch = {
+	hovercon = {
 		build = "builder_start",
 		ok = {
 			[1] = "hovercraft_move",
@@ -746,7 +780,7 @@ local sounds = {
 			[1] = "hovercraft_select",
 		},
 	},
-	corsh = {
+	hoverraid = {
 		ok = {
 			[1] = "hovercraft_move",
 		},
@@ -754,7 +788,7 @@ local sounds = {
 			[1] = "hovercraft_select",
 		},
 	},
-	nsaclash = {
+	hoverskirm = {
 		ok = {
 			[1] = "hovercraft_move",
 		},
@@ -786,7 +820,7 @@ local sounds = {
 			[1] = "hovercraft_select",
 		},
 	},
-	armmanni = {
+	hoverarty = {
 		ok = {
 			[1] = "hovercraft_move",
 		},
@@ -804,7 +838,7 @@ local sounds = {
 	},
 	
 	-- Fixed wing
-	fighter = {
+	planefighter = {
 		ok = {
 			[1] = "fighter_move",
 		},
@@ -812,7 +846,7 @@ local sounds = {
 			[1] = "fighter_select",
 		},
 	},
-	corvamp = {
+	planeheavyfighter = {
 		ok = {
 			[1] = "fighter_move",
 		},
@@ -820,7 +854,7 @@ local sounds = {
 			[1] = "fighter_select",
 		},
 	},
-	corshad = {
+	bomberprec = {
 		ok = {
 			[1] = "bomber_move",
 		},
@@ -828,7 +862,7 @@ local sounds = {
 			[1] = "bomber_select",
 		},
 	},
-	bomberdive = {
+	bomberriot = {
 		ok = {
 			[1] = "bomber_move",
 		},
@@ -836,7 +870,7 @@ local sounds = {
 			[1] = "bomber_select",
 		},
 	},
-	corhurc2 = {
+	bomberdisarm = {
 		ok = {
 			[1] = "bomber_move",
 		},
@@ -844,7 +878,7 @@ local sounds = {
 			[1] = "bomber_select",
 		},
 	},
-	armstiletto_laser = {
+	bomberheavy = {
 		ok = {
 			[1] = "bomber_move",
 		},
@@ -852,7 +886,7 @@ local sounds = {
 			[1] = "bomber_select",
 		},
 	},
-	armcybr = {
+	planescout = {
 		ok = {
 			[1] = "bomber_move",
 		},
@@ -860,17 +894,17 @@ local sounds = {
 			[1] = "bomber_select",
 		},
 	},
-	corawac = {
+	planelightscout = {
 		ok = {
-			[1] = "bomber_move",
+			[1] = "fighter_move",
 		},
 		select = {
-			[1] = "bomber_select",
+			[1] = "fighter_select",
 		},
 	},
 	
 	-- Gunship
-	armca = {
+	planecon = {
 		build = "builder_start",
 		ok = {
 			[1] = "gunship_move",
@@ -879,7 +913,8 @@ local sounds = {
 			[1] = "light_gunship_select",
 		},
 	},
-	bladew = {
+	gunshipcon = {
+		build = "builder_start",
 		ok = {
 			[1] = "gunship_move",
 		},
@@ -887,7 +922,7 @@ local sounds = {
 			[1] = "light_gunship_select",
 		},
 	},
-	blastwing = {
+	gunshipemp = {
 		ok = {
 			[1] = "gunship_move",
 		},
@@ -895,7 +930,15 @@ local sounds = {
 			[1] = "light_gunship_select",
 		},
 	},
-	armkam = {
+	gunshipbomb = {
+		ok = {
+			[1] = "gunship_move",
+		},
+		select = {
+			[1] = "light_gunship_select",
+		},
+	},
+	gunshipraid = {
 		ok = {
 			[1] = "gunship_move",
 		},
@@ -911,7 +954,7 @@ local sounds = {
 			[1] = "gunship_select",
 		},
 	},
-	gunshipsupport = {
+	gunshipskirm = {
 		ok = {
 			[1] = "gunship_move",
 		},
@@ -919,31 +962,34 @@ local sounds = {
 			[1] = "gunship_select",
 		},
 	},
-	armbrawl = {
+	gunshipheavyskirm = {
 		ok = {
 			[1] = "heavy_gunship_move",
 		},
 		select = {
 			[1] = "heavy_gunship_select",
+			volume = 0.8,
 		},
 	},
-	blackdawn = {
+	gunshipassault = {
 		ok = {
 			[1] = "heavy_gunship_move",
 		},
 		select = {
 			[1] = "heavy_gunship_select",
+			volume = 0.8,
 		},
 	},
-	corcrw = {
+	gunshipkrow = {
 		ok = {
 			[1] = "gunship_move",
 		},
 		select = {
 			[1] = "heavy_gunship_select",
+			volume = 0.8,
 		},
 	},
-	corvalk = {
+	gunshiptrans = {
 		ok = {
 			[1] = "gunship_move",
 		},
@@ -951,16 +997,19 @@ local sounds = {
 			[1] = "gunship_select",
 		},
 	},
-	corbtrans = {
+	gunshipheavytrans = {
 		ok = {
 			[1] = "gunship_move",
 		},
 		select = {
 			[1] = "heavy_gunship_select",
+			volume = 0.8,
 		},
 	},
 	
 	-- Sea
+	
+	-- New Ships
 	shipcon = {
 		build = "builder_start",
 		ok = {
@@ -982,7 +1031,7 @@ local sounds = {
 			volume = 1.6,
 		},
 	},
-	shipraider = {
+	shiptorpraider = {
 		ok = {
 			[1] = "rumble2",
 			volume = 1.6,
@@ -992,7 +1041,7 @@ local sounds = {
 			volume = 1.6,
 		},
 	},
-	shiptorp = {
+	shipriot = {
 		ok = {
 			[1] = "rumble2",
 			volume = 1.6,
@@ -1010,6 +1059,16 @@ local sounds = {
 		select = {
 			[1] = "sub_select",
 			volume = 1.1,
+		},
+	},
+	shipassault = {
+		ok = {
+			[1] = "rumble2",
+			volume = 1.6,
+		},
+		select = {
+			[1] = "rumble1",
+			volume = 1.6,
 		},
 	},
 	shiparty = {
@@ -1032,7 +1091,27 @@ local sounds = {
 			volume = 1.6,
 		},
 	},
-	subarty = {
+	shipheavyarty = {
+		ok = {
+			[1] = "rumble2",
+			volume = 1.6,
+		},
+		select = {
+			[1] = "rumble1",
+			volume = 1.6,
+		},
+	},
+	shipcarrier = {
+		ok = {
+			[1] = "rumble2",
+			volume = 1.6,
+		},
+		select = {
+			[1] = "rumble1",
+			volume = 1.6,
+		},
+	},
+	subtacmissile = {
 		ok = {
 			[1] = "rumble2",
 			volume = 1.6,
@@ -1040,46 +1119,6 @@ local sounds = {
 		select = {
 			[1] = "sub_select",
 			volume = 1.1,
-		},
-	},
-	cornukesub = {
-		ok = {
-			[1] = "rumble2",
-			volume = 1.6,
-		},
-		select = {
-			[1] = "sub_select",
-			volume = 1.1,
-		},
-	},
-	armcarry = {
-		ok = {
-			[1] = "rumble2",
-			volume = 1.6,
-		},
-		select = {
-			[1] = "rumble1",
-			volume = 1.6,
-		},
-	},
-	reef = {
-		ok = {
-			[1] = "rumble2",
-			volume = 1.6,
-		},
-		select = {
-			[1] = "rumble1",
-			volume = 1.6,
-		},
-	},
-	corbats = {
-		ok = {
-			[1] = "rumble2",
-			volume = 1.6,
-		},
-		select = {
-			[1] = "rumble1",
-			volume = 1.6,
 		},
 	},
 	shipaa = {
@@ -1092,49 +1131,50 @@ local sounds = {
 			volume = 1.6,
 		},
 	},
+	-- Transport boat doesn't have one by design.
 	
 	-- Economy
-	cormex = {
+	staticmex = {
 		select = {
 			[1] = "building_select2",
 		},
 	},
-	armwin = {
+	energywind = {
 		select = {
 			[1] = "windmill",
 		},
 	},
-	armsolar = {
+	energysolar = {
 		select = {
 			[1] = "building_select1",
 		},
 	},
-	armfus = {
+	energyfusion = {
 		select = {
 			[1] = "fusion_select",
 		},
 	},
-	armestor = {
+	energypylon = {
 		select = {
 			[1] = "fusion_select",
 		},
 	},
-	cafus = {
+	energysingu = {
 		select = {
 			[1] = "adv_fusion_select",
 		},
 	},
-	geo = {
+	energygeo = {
 		select = {
 			[1] = "geo_select",
 		},
 	},
-	amgeo = {
+	energyheavygeo = {
 		select = {
 			[1] = "geo_select",
 		},
 	},
-	armmstor = {
+	staticstorage = {
 		select = {
 			[1] = "building_select2",
 		},
@@ -1144,7 +1184,7 @@ local sounds = {
 			[1] = "fusion_select",
 		},
 	},
-	armnanotc = {
+	staticcon = {
 		build = "builder_start",
 		select = {
 			[1] = "building_select1",
@@ -1227,47 +1267,39 @@ local sounds = {
 	
 	-- Intel
 	--[[
-	corrad = { NEEDED
+	staticradar = { NEEDED
 		select = {
 			[1] = "factory_select",
 		},
 	},
-	corvrad = { NEEDED
-		ok = {
-			[1] = "bot_move",
-		},
-		select = {
-			[1] = "factory_select",
-		},
-	},
-	armarad = { NEEDED
+	staticheavyradar = { NEEDED
 		select = {
 			[1] = "factory_select",
 		},
 	},
 	--]]
-	armsonar = {
+	staticsonar = {
 		select = {
 			[1] = "sonar_select",
 		},
 	},
-	corrad = {
+	staticradar = {
 		select = {
 			[1] = "radar_select",
 		},
 	},
-	armarad = {
+	staticheavyradar = {
 		select = {
 			[1] = "radar_select",
 		},
 	},
 	
-	corjamt = {
+	staticshield = {
 		select = {
 			[1] = "shield_select",
 		},
 	},
-	core_spectre = {
+	shieldshield = {
 		ok = {
 			[1] = "bot_move",
 		},
@@ -1275,12 +1307,12 @@ local sounds = {
 			[1] = "shield_select",
 		},
 	},
-	armjamt = {
+	staticjammer = {
 		select = {
 			[1] = "cloaker_select",
 		},
 	},
-	spherecloaker = {
+	cloakjammer = {
 		ok = {
 			[1] = "bot_move",
 		},
@@ -1290,7 +1322,7 @@ local sounds = {
 	},
 	
 	-- Land Turrets
-	corllt = {
+	turretlaser = {
 		ok = {
 			[1] = "turret_move",
 		},
@@ -1298,7 +1330,7 @@ local sounds = {
 			[1] = "light_turret_select",
 		},
 	},
-	corgrav = {
+	turretimpulse = {
 		ok = {
 			[1] = "turret_move",
 		},
@@ -1306,7 +1338,7 @@ local sounds = {
 			[1] = "light_turret_select",
 		},
 	},
-	armartic = {
+	turretemp = {
 		ok = {
 			[1] = "turret_move",
 		},
@@ -1314,7 +1346,7 @@ local sounds = {
 			[1] = "faraday_select",
 		},
 	},
-	armdeva = {
+	turretriot = {
 		ok = {
 			[1] = "turret_move",
 		},
@@ -1322,7 +1354,7 @@ local sounds = {
 			[1] = "light_turret_select",
 		},
 	},
-	corhlt = {
+	turretheavylaser = {
 		ok = {
 			[1] = "light_turret_select",
 		},
@@ -1330,7 +1362,7 @@ local sounds = {
 			[1] = "turret_select",
 		},
 	},
-	armpb = {
+	turretgauss = {
 		ok = {
 			[1] = "light_turret_select",
 		},
@@ -1338,7 +1370,7 @@ local sounds = {
 			[1] = "turret_select",
 		},
 	},
-	armanni = {
+	turretantiheavy = {
 		ok = {
 			[1] = "light_turret_select",
 		},
@@ -1346,7 +1378,7 @@ local sounds = {
 			[1] = "turret_select",
 		},
 	},
-	cordoom = {
+	turretheavy = {
 		ok = {
 			[1] = "turret_select",
 		},
@@ -1354,7 +1386,7 @@ local sounds = {
 			[1] = "turret_select",
 		},
 	},
-	armbrtha = {
+	turretsunlance = {
 		ok = {
 			[1] = "turret_select",
 		},
@@ -1362,7 +1394,15 @@ local sounds = {
 			[1] = "turret_select",
 		},
 	},
-	corbhmth = {
+	staticheavyarty = {
+		ok = {
+			[1] = "turret_select",
+		},
+		select = {
+			[1] = "turret_select",
+		},
+	},
+	staticarty = {
 		ok = {
 			[1] = "turret_select",
 		},
@@ -1396,7 +1436,7 @@ local sounds = {
 	},
 	
 	-- Air Turrets
-	corrl = {
+	turretmissile = {
 		ok = {
 			[1] = "turret_move",
 		},
@@ -1412,7 +1452,7 @@ local sounds = {
 			[1] = "light_turret_select",
 		},
 	},
-	missiletower = {
+	turretaaclose = {
 		ok = {
 			[1] = "turret_move",
 		},
@@ -1420,7 +1460,7 @@ local sounds = {
 			[1] = "light_turret_select",
 		},
 	},
-    corrazor = {
+    turretaalaser = {
 		ok = {
 			[1] = "turret_move",
 		},
@@ -1428,7 +1468,7 @@ local sounds = {
 			[1] = "light_turret_select",
 		},
 	},
-	armcir = {
+	turretaafar = {
 		ok = {
 			[1] = "light_turret_select",
 		},
@@ -1436,7 +1476,7 @@ local sounds = {
 			[1] = "turret_select",
 		},
 	},
-	corflak = {
+	turretaaflak = {
 		ok = {
 			[1] = "light_turret_select",
 		},
@@ -1444,7 +1484,7 @@ local sounds = {
 			[1] = "turret_select",
 		},
 	},
-	screamer = {
+	turretaaheavy = {
 		ok = {
 			[1] = "turret_select",
 		},
@@ -1454,7 +1494,7 @@ local sounds = {
 	},
 	
 	-- Silo etc
-	missilesilo = {
+	staticmissilesilo = {
 		build = "builder_start",
 		select = {
 			[1] = "silo_select",
@@ -1484,7 +1524,7 @@ local sounds = {
 			[1] = "silo_select",
 		},
 	},
-	armamd = {
+	staticantinuke = {
 		ok = {
 			[1] = "turret_select",
 		},
@@ -1492,7 +1532,7 @@ local sounds = {
 			[1] = "silo_select",
 		},
 	},
-	corsilo = {
+	staticnuke = {
 		select = {
 			[1] = "silo_select",
 		},

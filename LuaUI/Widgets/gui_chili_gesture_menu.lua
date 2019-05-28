@@ -11,12 +11,13 @@ function widget:GetInfo()
     date      = "2009-not as hot as before",
     license   = "GNU GPL, v2 or later",
     layer     = 100000,
-    enabled   = true,
-    handler = true,
+    enabled   = false,
+    handler   = true,
   }
 end 
 
 include("keysym.h.lua")
+VFS.Include("LuaRules/Configs/customcmds.h.lua")
 -------------------------------------------------
 ------ SPEEDUPS
 -------------------------------------------------
@@ -45,14 +46,14 @@ local spEcho				= Spring.Echo
 local CMD_BUILD_STRUCTURE = 10010
 local ANGLE_TOLERANCE = 22.5
 
-local MINDIST = 50
-local BIG_ICON_SIZE = 32
-local MOVE_THRESHOLD_SQUARED = 900
-local IDLE_THRESHOLD = 0.5 -- after this seconds menu shows if you hold right mouse still
-local SMALL_ICON_SIZE = 20
-local KEYBOARD_ONLY = false 
-local KEYBOARD_OPEN_ONLY = false 
-local ALLOW_MULTIPLE = false 
+local MINDIST
+local BIG_ICON_SIZE
+local MOVE_THRESHOLD_SQUARED
+local IDLE_THRESHOLD
+local SMALL_ICON_SIZE
+local KEYBOARD_ONLY
+local KEYBOARD_OPEN_ONLY
+local ALLOW_MULTIPLE
 
 local mouselessOpen = false
 
@@ -82,16 +83,14 @@ local function OptionsChanged()
 	end
 end 
 
-options_path = 'Settings/HUD Panels/Gestures'
+options_path = 'Settings/Interface/Gesture Menu'
 options_order = { 'markingmenu', 'iconDistance', 'iconSize', 'selectedIconSize', 'mouseMoveThreshold', 'mouseIdleThreshold', 'keyboardOnly', 'onlyOpenWithKeyboard', "qwertz", 'alternateconfig', 'allowMultiple'}
 options = {
-	
 	markingmenu = {
-		name = "Activate Gesture Menu",
+		name = "Open Menu (set a hotkey ->)",
 		type = 'button',
 		--OnChange defined later 
 	},
-	
 	
 	iconDistance = {
 		name = "Icon distance (20-150)",
@@ -170,7 +169,7 @@ options = {
 	allowMultiple = {
 		name = "Allow for multiple selected units",
 		type = "bool",
-		value = false,
+		value = true,
 		desc = "Allows gestures even for multiple units selected",
 		OnChange = OptionsChanged,
 	},
@@ -339,13 +338,17 @@ function SetupMenu(keyboard, mouseless)
     local found = false
     for _, unitID in ipairs(units) do 
       local ud = UnitDefs[Spring.GetUnitDefID(unitID)]
-      if ud.isBuilder and menu_use[ud.name] then 
-		found = ud
-	  elseif ud.canMove and not keyboard then
-		menu = nil
-        menu_selected=  nil
-        return false
-      end
+      if ud then
+	    if ud.isBuilder and menu_use[ud.name] then 
+		  found = ud
+	    elseif ud.canMove and not keyboard then
+		  menu = nil
+          menu_selected=  nil
+          return false
+        end
+	  else
+		return false
+	  end
     end 
 
     -- setup menu depending on selected unit
@@ -479,7 +482,7 @@ function widget:KeyPress(k)
 end
 
 
-function widget:MousePress(x,y,button)
+function widget:MousePress(x, y, button)
 	if menu then
 		if (button == 3) then
 			EndMenu(false) -- cancel after keyboard menu open
@@ -489,16 +492,19 @@ function widget:MousePress(x,y,button)
 		end
 	elseif (menu == nil) and not KEYBOARD_OPEN_ONLY then
 		if (button == 3) then
-			local activeCmdIndex, activeid = Spring.GetActiveCommand()
-			local _, defid = Spring.GetDefaultCommand()
-			if ((activeid == nil or activeid < 0) and (defid == CMD.MOVE or not defid)) then -- nano turrets have no CMD.MOVE active command
-				if SetupMenu(false) then 
-					menu_invisible = true 
-					move_digested = true 
-					hold_pos = {x,y} 
-					return true
+			local map = WG.MinimapPositionSpringSpace
+			if (not map) or x < map[1] or x > map[1] + map[3] or y < map[2] or y > map[2] + map[4] then
+				local activeCmdIndex, activeid = Spring.GetActiveCommand()
+				local _, defid = Spring.GetDefaultCommand()
+				if ((activeid == nil or activeid < 0) and (defid == CMD.MOVE or defid == CMD_RAW_MOVE or not defid)) then -- nano turrets have no CMD.MOVE active command
+					if SetupMenu(false) then 
+						menu_invisible = true 
+						move_digested = true 
+						hold_pos = {x,y} 
+						return true
+					end 
 				end 
-			end 
+			end
 		end 
 	end 
 	return false
@@ -552,26 +558,29 @@ function widget:MouseRelease(x,y,button)
 		if (activeid ~= nil and activeid < 0) then  -- we already had unit selected and menu wasnt visible - cancel previous unit selection
 			Spring.SetActiveCommand(0) 
 		else 
-			inMinimap = Spring.IsAboveMiniMap(x, y)
+			local inMinimap = Spring.IsAboveMiniMap(x, y)
 			local pos
 	
 			if inMinimap then
 				pos = MinimapMouseToWorld(x, y)
 			else
-				_, pos = Spring.TraceScreenRay(x, y, true)
+				pos = select(2, Spring.TraceScreenRay(x, y, true))
 			end
-    
+			if not pos then
+				return
+			end
+
 			local alt, ctrl, meta, shift = Spring.GetModKeyState()
-			local keyState = {}
-			if alt   then tinsert(keyState, "alt") end
-			if ctrl  then tinsert(keyState, "ctrl") end
-			if meta  then tinsert(keyState, "meta") end
-			if shift then tinsert(keyState, "shift") end
+			local keyState = {coded = 0}
+			if alt   then keyState.alt   = true; keyState.coded = keyState.coded + CMD.OPT_ALT   end
+			if ctrl  then keyState.ctrl  = true; keyState.coded = keyState.coded + CMD.OPT_CTRL  end
+			if meta  then keyState.meta  = true; keyState.coded = keyState.coded + CMD.OPT_META  end
+			if shift then keyState.shift = true; keyState.coded = keyState.coded + CMD.OPT_SHIFT end
     
 			if meta and WG.CommandInsert then 
-				GiveNotifyingInsertOrder(CMD.MOVE,pos,keyState)
+				GiveNotifyingInsertOrder(CMD_RAW_MOVE, {pos[1], pos[2], pos[3]},keyState)
 			else 
-				GiveNotifyingOrder(CMD.MOVE, pos, keyState)
+				GiveNotifyingOrder(CMD_RAW_MOVE, {pos[1], pos[2], pos[3]}, keyState)
 			end 
 		end 
 	end 
@@ -725,6 +734,8 @@ function widget:DrawScreen()
 end
 
 function widget:Initialize()
+
+	OptionsChanged()
 
   -- adding functions because of "handler=true"
   widgetHandler.AddAction    = function (_, cmd, func, data, types)

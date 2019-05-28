@@ -270,7 +270,8 @@ options = {
 		name = 'Enable Stereo 3D',
 		type = 'bool',
 		value = false,
-		desc = 'Turn Stereo3D vision on or off.'
+		desc = 'Turn Stereo3D vision on or off.',
+		noHotkey = true,
 	},
 	
 	helpwindow = {
@@ -294,18 +295,21 @@ options = {
 		type = 'bool',
 		value = false,
 		OnChange = UpdateConvSep,
+		noHotkey = true,
 	},
 	lasersight = {
 		name = 'Laser Sight',
 		type = 'bool',
 		value = true,
-		desc = 'Enable Laser sight for cursor.'
+		desc = 'Enable Laser sight for cursor.',
+		noHotkey = true,
 	},
 	
 	hidecursor = {
 		name = 'Hide Cursor',
 		type = 'bool',
 		value = false,
+		noHotkey = true,
 	},
 	
 	sep = {
@@ -349,7 +353,7 @@ options = {
 		name = 'Camera Type',
 		type = 'list',
 		items = {
-			{name = 'Total Annihilation', 	key = 'viewta'},
+			{name = 'Default', 	            key = 'viewta'},
 			{name = 'Free', 				key = 'viewfree'},
 			{name = 'Rotatable Overhead', 	key = 'viewrot'},
 			{name = 'Total War', 			key = 'viewtw'},

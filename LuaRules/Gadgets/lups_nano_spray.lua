@@ -10,7 +10,7 @@ function gadget:GetInfo()
     date      = "2008-2012",
     license   = "GNU GPL, v2 or later",
     layer     = 0,
-    enabled   = not ((Game.version:find('91.0') == 1) and (Game.version:find('91.0.1') == nil))
+    enabled   = true
   }
 end
 
@@ -19,8 +19,8 @@ local spGetFactoryCommands = Spring.GetFactoryCommands
 local spGetCommandQueue    = Spring.GetCommandQueue
 
 local function GetCmdTag(unitID) 
-    local cmdTag = 0
-    local cmds = spGetFactoryCommands(unitID,1)
+	local cmdTag = 0
+	local cmds = spGetFactoryCommands(unitID,1)
 	if (cmds) then
 		local cmd = cmds[1]
 		if cmd then
@@ -28,13 +28,20 @@ local function GetCmdTag(unitID)
 		end
 	end
 	if cmdTag == 0 then 
-		local cmds = spGetCommandQueue(unitID,1)
-		if (cmds) then
-			local cmd = cmds[1]
-			if cmd then
-				cmdTag = cmd.tag
+		if Spring.Utilities.COMPAT_GET_ORDER then
+			local cmds = spGetCommandQueue(unitID,1)
+			if (cmds) then
+				local cmd = cmds[1]
+				if cmd then
+					cmdTag = cmd.tag
+				end
 			end
-        end
+		else
+			cmdID, _, firstCmdTag = Spring.GetUnitCurrentCommand(unitID)
+			if cmdID then
+				cmdTag = firstCmdTag
+			end
+		end
 	end 
 	return cmdTag
 end 
@@ -279,14 +286,14 @@ function gadget:GameFrame(frame)
 	for i=1,#builders do
 		local unitID = builders[i]
 		if ((unitID + frame) % 30 < 1) then --// only update once per second
-			local strength = Spring.GetUnitCurrentBuildPower(unitID) or 0	-- * 16
+			local strength = (Spring.GetUnitCurrentBuildPower(unitID) or 0)*(Spring.GetUnitRulesParam(unitID, "totalEconomyChange") or 1)	-- * 16
 			if (strength > 0) then
-				local type, target, isFeature = Spring.Utilities.GetUnitNanoTarget(unitID)
+				local targetType, target, isFeature = Spring.Utilities.GetUnitNanoTarget(unitID)
 
 				if (target) then
 					local endpos
 					local radius = 30
-					if (type=="restore") then
+					if (targetType=="restore") then
 						endpos = target
 						radius = target[4]
 						target = -1
@@ -298,9 +305,9 @@ function gadget:GameFrame(frame)
 
 					local terraform = false
 					local inversed  = false
-					if (type=="restore") then
+					if (targetType=="restore") then
 						terraform = true
-					elseif (type=="reclaim") then
+					elseif (targetType=="reclaim") then
 						inversed  = true
 					end
 
@@ -336,14 +343,13 @@ function gadget:GameFrame(frame)
 							allyID       = allyID,
 							nanopiece    = nanoPieceID,
 							targetpos    = endpos,
-							count        = strength * 30,
+							count        = strength*30,
 							color        = teamColor,
-							type         = type,
+							type         = targetType,
 							targetradius = radius,
 							terraform    = terraform,
 							inversed     = inversed,
 							cmdTag       = cmdTag, --//used to end the fx when the command is finished
-							life = 60,
 						}
 
 						local nanoSettings = CopyMergeTables(factionsNanoFx[faction] or factionsNanoFx.default, nanoParams)
@@ -412,7 +418,7 @@ function gadget:Update()
     local factionNanoFx = factionsNanoFx[faction]
     factionNanoFx.delaySpread = 30
     factionNanoFx.fxtype = factionNanoFx.fxtype:lower()
-    if ((Lups.Config["quality"] or 2)>=2)and((factionNanoFx.fxtype=="nanolasers")or(factionNanoFx.fxtype=="nanolasersshader")) then
+    if ((Lups.Config["quality"] or 3)>=3) and ((factionNanoFx.fxtype=="nanolasers") or (factionNanoFx.fxtype=="nanolasersshader")) then
       factionNanoFx.flare = true
     end
 

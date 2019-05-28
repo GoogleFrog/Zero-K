@@ -6,11 +6,10 @@ function gadget:GetInfo()
 		date    = "2008-10-15", --2013-09-05
 		license = "GNU GPL, v2 or later",
 		layer   = 1000000, -- Must be after all other build steps and before unit_spawner.lua for queen kill award.
-		enabled = not (Game.version:find('91.0') == 1),
+		enabled = true,
 	}
 end
 
---local TESTMODE = true
 include("LuaRules/Configs/constants.lua")
 
 local spGetAllyTeamList = Spring.GetAllyTeamList
@@ -22,35 +21,7 @@ local echo = Spring.Echo
 
 local totalTeamList = {}
 
-local awardDescs =
-{
-	pwn     = 'Complete Annihilation Award',
-	navy    = 'Fleet Admiral',
-	air     = 'Airforce General',
-	nux     = 'Apocalyptic Achievement Award',
-	friend  = 'Friendly Fire Award',
-	shell   = 'Turtle Shell Award',
-	fire    = 'Master Grill-Chef',
-	emp     = 'EMP Wizard',
-	slow    = 'Traffic Cop',
-	t3      = 'Experimental Engineer',
-	cap     = 'Capture Award',
-	share   = 'Share Bear',
-	terra   = 'Legendary Landscaper',
-	reclaim = 'Spoils of War',
-	rezz    = 'Necromancy Award',
-	vet     = 'Decorated Veteran',
-	ouch    = 'Big Purple Heart',
-	kam     = 'Kamikaze Award',
-	comm    = 'Master and Commander',
-	mex     = 'Mineral Prospector',
-	mexkill = 'Loot & Pillage',
-	rage    = 'Rage Inducer',
-	head    = 'Head Hunter',
-	dragon  = 'Dragon Slayer',
-	heart   = 'Queen Heart Breaker',
-	sweeper = 'Land Sweeper',
-}
+local awardDescs = VFS.Include("LuaRules/Configs/award_names.lua")
 
 -------------------------------------------------------------------------------------
 -------------------------------------------------------------------------------------
@@ -66,18 +37,17 @@ local spGetUnitTeam         = Spring.GetUnitTeam
 local spGetUnitDefID        = Spring.GetUnitDefID
 local spGetUnitExperience   = Spring.GetUnitExperience
 local spGetTeamResources    = Spring.GetTeamResources
+local GetUnitCost           = Spring.Utilities.GetUnitCost
 
 local floor = math.floor
 
 local terraunitDefID = UnitDefNames["terraunit"].id
 local terraformCost  = UnitDefNames["terraunit"].metalCost
 
-local mexDefID = UnitDefNames["cormex"].id
-local mexCost  = UnitDefNames["cormex"].metalCost
+local mexDefID = UnitDefNames["staticmex"].id
+local mexCost  = UnitDefNames["staticmex"].metalCost
 
-local reclaimListByFeature = {}
-local shareListTemp1 = {}
-local shareListTemp2 = {}
+local gameOver = false
 
 local cappedComs = {}
 
@@ -121,32 +91,31 @@ local awardEasyFactors = {
 local expUnitTeam, expUnitDefID, expUnitExp = 0,0,0
 
 local awardList = {}
-local sentAwards = false
-
-local shareList_update = TEAM_SLOWUPDATE_RATE*60*5 -- five minute frames
 
 local boats, t3Units, comms = {}, {}, {}
 
 local staticO_small = {
-	armbrtha = 1,
+	staticheavyarty = 1,
 	seismic = 1,
 	tacnuke = 1,
 	empmissile = 1,
 	napalmmissile = 1,
+	wolverine_mine = 1,
 }
 
 local staticO_big = {
-	corsilo = 1,
+	staticnuke = 1,
 	mahlazer = 1,
+	starlight_satellite=1,
 	zenith = 1,
 	raveparty = 1,
 }
 
 local kamikaze = {
-	corroach=1,
-	corsktl=1,
-	blastwing=1,
-	puppy=1,
+	shieldbomb=1,
+	jumpbomb=1,
+	gunshipbomb=1,
+	jumpscout=1,
 }
 
 local flamerWeaponDefs = {}
@@ -234,14 +203,6 @@ local function awardAward(team, awardType, record)
 		return
 	end
 	awardList[team][awardType] = record
-
-	if TESTMODE then
-		for _,curTeam in pairs(totalTeamList) do
-			if curTeam ~= team then
-				awardList[curTeam][awardType] = nil
-			end
-		end
-	end
 end
 
 local function CopyTable(original) -- Warning: circular table references lead to
@@ -254,11 +215,6 @@ local function CopyTable(original) -- Warning: circular table references lead to
 		end
 	end
 	return copy
-end
-
-local function UpdateShareList()
-	awardData.share = CopyTable(shareListTemp2)
-	shareListTemp2 = CopyTable(shareListTemp1)
 end
 
 local function UpdateResourceStats(t)
@@ -357,27 +313,6 @@ local function AddAwardPoints( awardType, teamID, amount )
 	end
 end
 
-local function AddFeatureReclaim(featureID)
-	local featureData = reclaimListByFeature[featureID]
-	local metal = featureData.metal
-	featureData.metal = nil
-
-	for team, part in pairs(featureData) do
-		if (part < 0) then --more metal was reclaimed from feature than spent on repairing it (during resurrecting)
-			if metal then
-				AddAwardPoints( 'reclaim', team, - metal * part )
-			end
-		end
-	end
-end
-
-local function FinalizeReclaimList()
-	for featureID, _ in pairs(reclaimListByFeature) do
-		AddFeatureReclaim(featureID)
-	end
-	reclaimListByFeature = {}
-end
-
 local function ProcessAwardData()
 
 	for awardType, data in pairs(awardData) do
@@ -461,9 +396,8 @@ local function ProcessAwardData()
 
 				elseif awardType == 'vet' then
 					local vetName = UnitDefs[expUnitDefID] and UnitDefs[expUnitDefID].humanName
-					local expUnitExpRounded = ''..floor(expUnitExp * 10)
-					expUnitExpRounded = expUnitExpRounded:sub(1,-2) .. '.' .. expUnitExpRounded:sub(-1)
-					message = vetName ..', '.. expUnitExpRounded ..' XP'
+					local expUnitExpRounded = floor(expUnitExp * 100)
+					message = vetName ..', '.. expUnitExpRounded .. "% cost made"
 				else
 					message = 'Damaged value: '.. maxValWrite
 				end
@@ -502,9 +436,6 @@ function gadget:Initialize()
 	for _,team in pairs(totalTeamList) do
 		awardList[team] = {}
 
-		shareListTemp1[team] = 0
-		shareListTemp2[team] = 0
-
 		for awardType, _ in pairs(awardDescs) do
 			awardData[awardType][team] = 0
 		end
@@ -541,9 +472,8 @@ function gadget:Initialize()
 	end
 
 	for i=1,#UnitDefs do
-		if(UnitDefs[i].customParams.level) then comms[i] = true
+		if(UnitDefs[i].customParams.dynamic_comm) then comms[i] = true
 	end
-
  end
 
 end --Initialize
@@ -556,35 +486,28 @@ function gadget:UnitTaken(unitID, unitDefID, oldTeam, newTeam)
 	if not spAreTeamsAllied(oldTeam,newTeam) then
 		if awardData['cap'][newTeam] then --if team exist, then:
 			local ud = UnitDefs[unitDefID]
-			local mCost = ud and ud.metalCost or 0
+			local mCost = GetUnitCost(unitID, unitDefID)
 			AddAwardPoints( 'cap', newTeam, mCost )
-			if (ud.customParams.commtype) then
+			if (ud.customParams.dynamic_comm) then
 				if (not cappedComs[unitID]) then
-					cappedComs[unitID] = select(6, spGetTeamInfo(oldTeam))
-				elseif (cappedComs[unitID] == select(6, spGetTeamInfo(newTeam))) then
+					cappedComs[unitID] = select(6, spGetTeamInfo(oldTeam, false))
+				elseif (cappedComs[unitID] == select(6, spGetTeamInfo(newTeam, false))) then
 					cappedComs[unitID] = nil
 				end
 			end
 		end
 	else -- teams are allied
-		if (unitDefID ~= terraunitDefID) and shareListTemp1[oldTeam] and shareListTemp1[newTeam] then
-			local ud = UnitDefs[unitDefID]
-			local mCost = ud and ud.metalCost or 0
-
-			shareListTemp1[oldTeam] = shareListTemp1[oldTeam] + mCost
-			shareListTemp1[newTeam] = shareListTemp1[newTeam] - mCost
-
-			--[[
-			AddAwardPoints( 'share', oldTeam, mCost )
-			AddAwardPoints( 'share', newTeam, 0-mCost )
-			--]]
+		if (unitDefID ~= terraunitDefID) then
+			local mCost = GetUnitCost(unitID, unitDefID)
+			AddAwardPoints('share', oldTeam,  mCost)
+			AddAwardPoints('share', newTeam, -mCost)
 		end
 	end
 end
 
 function gadget:UnitDestroyed(unitID, unitDefID, unitTeam, _, _, killerTeam)
 	local experience = spGetUnitExperience(unitID)
-	if experience > expUnitExp then
+	if experience > expUnitExp and (experience*UnitDefs[unitDefID].metalCost > 1000) then
 		expUnitExp = experience
 		expUnitTeam = unitTeam
 		expUnitDefID = unitDefID
@@ -601,12 +524,12 @@ function gadget:UnitDestroyed(unitID, unitDefID, unitTeam, _, _, killerTeam)
 	if (killerTeam == unitTeam) or (killerTeam == gaiaTeamID) or (unitTeam == gaiaTeamID) or (killerTeam == nil) then
 		return
 	elseif (unitDefID == mexDefID) then
-		if ((not spIsGameOver()) and (select(5, spGetUnitHealth(unitID)) > 0.9) and (not spAreTeamsAllied(killerTeam, unitTeam))) then
+		if ((not gameOver) and (select(5, spGetUnitHealth(unitID)) > 0.9) and (not spAreTeamsAllied(killerTeam, unitTeam))) then
 			AddAwardPoints( 'mexkill', killerTeam, 1 )
 		end
 	else
 		local ud = UnitDefs[unitDefID]
-		if (ud.customParams.commtype and (not spAreTeamsAllied(killerTeam, unitTeam))) then
+		if (ud.customParams.dynamic_comm and (not spAreTeamsAllied(killerTeam, unitTeam))) then
 			AddAwardPoints( 'head', killerTeam, 1 )
 		elseif ud.name == "chicken_dragon" then
 			AddAwardPoints( 'dragon', killerTeam, 1 )
@@ -622,34 +545,22 @@ function gadget:UnitDestroyed(unitID, unitDefID, unitTeam, _, _, killerTeam)
 	end
 end
 
-function gadget:AllowFeatureBuildStep(builderID, builderTeam, featureID, featureDefID, part)
-	if builderTeam == gaiaTeamID then
-		return true
-	end
-	reclaimListByFeature[featureID] = reclaimListByFeature[featureID] or { metal = FeatureDefs[featureDefID].metal }
-	reclaimListByFeature[featureID][builderTeam] = (reclaimListByFeature[featureID][builderTeam] or 0) + part
-	return true
-end
-
-function gadget:FeatureDestroyed (featureID, allyTeam)
-	if (reclaimListByFeature[featureID]) then
-		AddFeatureReclaim(featureID)
-		reclaimListByFeature[featureID] = nil
-	end
-end
-
-function gadget:UnitDamaged(unitID, unitDefID, unitTeam, fullDamage, paralyzer, weaponID,
+function gadget:UnitDamaged(unitID, unitDefID, unitTeam, damage, paralyzer, weaponID,
 		attackerID, attackerDefID, attackerTeam)
+	if (unitTeam == gaiaTeamID) then return end
+	local hp, maxHP = spGetUnitHealth(unitID)
+	if (hp < 0) then
+		damage = damage + hp
+	end
+	AddAwardPoints( 'ouch', unitTeam, damage )
+
 	if (not attackerTeam)
 		or (attackerTeam == unitTeam)
 		or (attackerTeam == gaiaTeamID)
-		or (unitTeam == gaiaTeamID)
 		then return end
 
-	local hp = spGetUnitHealth(unitID)
-	local damage = (hp > 0) and fullDamage or fullDamage + hp
 	local ud = UnitDefs[unitDefID]
-	local costdamage = (damage / ud.health) * ud.metalCost
+	local costdamage = (damage / maxHP) * GetUnitCost(unitID, unitDefID)
 
 	if spAreTeamsAllied(attackerTeam, unitTeam) then
 		if not paralyzer then
@@ -662,8 +573,6 @@ function gadget:UnitDamaged(unitID, unitDefID, unitTeam, fullDamage, paralyzer, 
 			if ud.name == "chickenflyerqueen" or ud.name == "chickenlandqueen" then
 				AddAwardPoints( 'heart', attackerTeam, damage )
 			end
-			AddAwardPoints( 'pwn', attackerTeam, costdamage )
-			AddAwardPoints( 'ouch', unitTeam, damage )
 			local ad = UnitDefs[attackerDefID]
 
 			if (flamerWeaponDefs[weaponID]) then
@@ -685,7 +594,7 @@ function gadget:UnitDamaged(unitID, unitDefID, unitTeam, fullDamage, paralyzer, 
 			elseif kamikaze[ad.name] then
 				AddAwardPoints( 'kam', attackerTeam, costdamage )
 
-			elseif ad.canFly then
+			elseif ad.canFly and not (ad.customParams.dontcount or ad.customParams.is_drone) then
 				AddAwardPoints( 'air', attackerTeam, costdamage )
 
 			elseif boats[attackerDefID] then
@@ -708,36 +617,9 @@ function gadget:UnitFinished(unitID, unitDefID, teamID)
 	end
 end
 
-function gadget:GameFrame(n)
+function gadget:GameOver()
+		gameOver = true
 
-	--if n%TEAM_SLOWUPDATE_RATE == 2 then
-	--	UpdateResourceStats((n-2)/TEAM_SLOWUPDATE_RATE)
-	--end
-
-	if n % shareList_update == 1 and not spIsGameOver() then
-		UpdateShareList()
-	end
-
-	if TESTMODE then
-		local frame32 = (n) % 32
-		if (frame32 < 0.1) then
-			sentAwards = false
-		end
-		awardAward(0, 'rezz', '12 super rezz go')
-		awardAward(0, 'pwn', '100000 damage!')
-		awardAward(0, 'ouch', '3400000 damage ouch!')
-		awardAward(0, 'navy', '3400000 damage ouch!')
-		awardAward(0, 'air', '3400000 damage ouch!')
-		awardAward(0, 'nux', '3400000 damage ouch!')
-		awardAward(0, 'kam', '3400000 damage ouch!')
-		
-		awardAward(1, 'mex', '20 mexes built super')
-
-	else
-		if not spIsGameOver() then return end
-	end
-
-	if not sentAwards then
 		local units = spGetAllUnits()
 		for i=1,#units do
 			local unitID = units[i]
@@ -746,22 +628,20 @@ function gadget:GameFrame(n)
 			gadget:UnitDestroyed(unitID, unitDefID, teamID)
 		end
 
-		FinalizeReclaimList()
-
-		--new
-		ProcessAwardData()
-
-		--test values
-		if TESTMODE then
-			local testteam = 0
-
-		--]]
+		-- read externally tracked values
+		local teams = Spring.GetTeamList()
+		for i = 1, #teams do
+			local team = teams[i]
+			if team ~= gaiaTeamID then
+				AddAwardPoints('reclaim', team, Spring.GetTeamRulesParam(team, "stats_history_metal_reclaim_current") or 0)
+				AddAwardPoints('pwn', team, Spring.Utilities.GetHiddenTeamRulesParam(team, "stats_history_damage_dealt_current") or 0)
+			end
 		end
 
+		ProcessAwardData()
+
 		_G.awardList = awardList
-		sentAwards = true
-	end
-end --GameFrame
+end
 
 -------------------------------------------------------------------------------------
 -------------------------------------------------------------------------------------
@@ -770,9 +650,6 @@ else -- UNSYNCED
 -------------------------------------------------------------------------------------
 
 local spSendCommands  = Spring.SendCommands
-
-local gameOver = false
-local sentToPlanetWars = false
 
 local teamNames     = {}
 local awardList
@@ -788,19 +665,15 @@ function gadget:Initialize()
 	end
 
 	for _,team in pairs(totalTeamList) do
-		local _, leaderPlayerID, _, isAI = spGetTeamInfo(team)
+		local _, leaderPlayerID, _, isAI = spGetTeamInfo(team, false)
 		local name
 		if isAI then
 			local _, aiName, _, shortName = Spring.GetAIInfo(team)
 			name = aiName ..' ('.. shortName .. ')'
 		else
-			name = Spring.GetPlayerInfo(leaderPlayerID)
+			name = Spring.GetPlayerInfo(leaderPlayerID, false)
 		end
 		teamNames[team] = name
-	end
-	--spSendCommands({'endgraph 0'})
-	if TESTMODE then
-		gadget:GameOver()
 	end
 end
 
@@ -879,14 +752,6 @@ local function SendEconomyDataToWidget()
 
 end
 
-function gadget:GameOver()
-	gameOver = true
-	--Spring.Echo("Game over (awards unsynced)")
-		
-	--// Resources
-	--SendEconomyDataToWidget()
-end
-
 -- function to convert SYNCED table to regular table. assumes no self referential loops
 local function ConvertToRegularTable(stable)
 	local ret = {}
@@ -900,23 +765,16 @@ local function ConvertToRegularTable(stable)
 	return ret
 end
 
-function gadget:Update()
-	if not gameOver then
-		return
-	end
-	if (not awardList) and SYNCED.awardList then
-		awardList = ConvertToRegularTable( SYNCED.awardList )
-		Script.LuaUI.SetAwardList( awardList )
-	end
-	if awardList and not sentToPlanetWars then
-		for team,awards in pairs(awardList) do
-			for awardType, record in pairs(awards) do
-				local planetWarsData = (teamNames[team] or "no_name") ..' '.. awardType ..' '.. awardDescs[awardType] ..', '.. record
-				Spring.SendCommands("wbynum 255 SPRINGIE:award,".. planetWarsData)
-				--Spring.Echo(planetWarsData)
-			end
+function gadget:GameOver()
+	awardList = ConvertToRegularTable( SYNCED.awardList )
+	Script.LuaUI.SetAwardList( awardList )
+
+	for team,awards in pairs(awardList) do
+		for awardType, record in pairs(awards) do
+			local planetWarsData = (teamNames[team] or "no_name") ..' '.. awardType ..' '.. awardDescs[awardType] ..', '.. record
+			Spring.SendCommands("wbynum 255 SPRINGIE:award,".. planetWarsData)
+			--Spring.Echo(planetWarsData)
 		end
-		sentToPlanetWars = true
 	end
 end
 

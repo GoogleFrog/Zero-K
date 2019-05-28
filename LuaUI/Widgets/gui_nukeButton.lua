@@ -63,7 +63,7 @@ config["buttonYPer"] = 0.765
 --Game Config ------------------------------------
 local unitList = {}
 unitList["ZK"] = {} --initialize table
-unitList["ZK"]["corsilo"] = {}
+unitList["ZK"]["staticnuke"] = {}
 --End
 
 local upper                 = string.upper
@@ -170,7 +170,8 @@ function widget:Update()
 		readyNukeCount = 0
 		highProgress = -1 --magic value: no active nukes
 		for unitID, udefID in pairs( nukeList ) do
-			local numStockpiled, numStockPQue, buildPercent = spGetUnitStockpile( unitID)
+			local numStockpiled, numStockPQue = spGetUnitStockpile( unitID)
+			local buildPercent = Spring.GetUnitRulesParam(unitID, "gadgetStockpile")
 			
 			if ( buildPercent == nil ) then
 				--unit seems to be gone, delete it
@@ -294,7 +295,7 @@ function widget:MousePress(x, y, button)
 		
 		local _,speedfac, _ = spGetGameSpeed()
 		if ( timeNow < intConfig["leftClickTime"] + (0.5 * speedfac ) ) then
-				--Spring.GiveOrderToUnit ( intConfig["nextNuke"], CMD.ATTACK, {500,500,500}, {} )
+				--Spring.GiveOrderToUnit ( intConfig["nextNuke"], CMD.ATTACK, {500,500,500}, 0 )
 				spSetActiveCommand( "Attack" )
 		end
 		intConfig["leftClickTime"] = timeNow
@@ -473,7 +474,7 @@ end
 
 function CheckSpecState()
 	local playerID = spGetMyPlayerID()
-	local _, _, spec, _, _, _, _, _ = spGetPlayerInfo(playerID)
+	local _, _, spec = spGetPlayerInfo(playerID, false)
 		
 	if ( spec == true ) then
 		spEcho("<Nuke Icon> Spectator mode. Widget removed.")

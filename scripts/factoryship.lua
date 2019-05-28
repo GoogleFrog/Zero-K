@@ -60,12 +60,12 @@ function script.Deactivate()
 	Signal(SIG_BUILD)
 	SetUnitValue(COB.INBUILDSTANCE, 0)
 	SetUnitValue(COB.BUGGER_OFF, 0)
-	Move(pad, z_axis, -20)
+	Move(pad, z_axis, 0)
 end
 
 
 function script.Create()
-	StartThread(SmokeUnit, smokePiece)
+	StartThread(GG.Script.SmokeUnit, smokePiece)
 	Spring.SetUnitNanoPieces(unitID, emitPieces)
 end
 
@@ -85,20 +85,20 @@ end
 function script.Killed(recentDamage, maxHealth)
 	local severity = recentDamage/maxHealth
 	if severity <= .25 then
-		Explode(base, sfxNone)
-		Explode(pontoon, sfxNone)
+		Explode(base, SFX.NONE)
+		Explode(pontoon, SFX.NONE)
 		return 1
 	elseif severity <= .50 then
-		Explode(base, sfxNone)
-		Explode(pontoon, sfxNone)
+		Explode(base, SFX.NONE)
+		Explode(pontoon, SFX.NONE)
 		return 2
 	elseif severity <= .99 then
-		Explode(base, sfxNone)
-		Explode(pontoon, sfxNone)
+		Explode(base, SFX.NONE)
+		Explode(pontoon, SFX.NONE)
 		return 2
 	else
-		Explode(base, sfxNone)
-		Explode(pontoon, sfxNone)
+		Explode(base, SFX.NONE)
+		Explode(pontoon, SFX.NONE)
 		return 2
 	end
 end

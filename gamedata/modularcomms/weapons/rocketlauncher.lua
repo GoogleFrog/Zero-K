@@ -9,11 +9,14 @@ local weaponDef = {
 	customParams            = {
 		slot = [[5]],
 		muzzleEffectFire = [[custom:STORMMUZZLE]],
+
+		light_camera_height = 2200,
+		light_color = [[0.95 0.65 0.30]],
+		light_radius = 280,
 	},
 
 	damage                  = {
 		default = 360,
-		planes  = 360,
 		subs    = 18,
 	},
 
@@ -23,7 +26,6 @@ local weaponDef = {
 	impulseFactor           = 0.4,
 	interceptedByShieldType = 2,
 	model                   = [[wep_m_hailstorm.s3o]],
-	predictBoost            = 1,
 	range                   = 430,
 	reloadtime              = 3,
 	smokeTrail              = true,

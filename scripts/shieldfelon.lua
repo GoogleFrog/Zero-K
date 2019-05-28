@@ -1,5 +1,3 @@
-local spGetUnitShieldState = Spring.GetUnitShieldState
-local spSetUnitShieldState = Spring.SetUnitShieldState
 include "constants.lua"
 --------------------------------------------------------------------------------
 -- pieces
@@ -41,7 +39,7 @@ local gun_1 = 0
 local DRAIN = tonumber (WeaponDefs[UnitDef.weapons[1].weaponDef].customParams.shield_drain)
 local SHIELD_RADIUS = 100
 local SPEED = UnitDef.speed / 30
-local AIM_DELAY = 300
+local AIM_DELAY = 0 -- Was 300
 local RESTORE_DELAY = 4000
 
 --signals
@@ -61,22 +59,12 @@ local function Walk()
 	Signal(SIG_WALK)
 	SetSignalMask(SIG_WALK)
 	
+	local start = 5
+	
 	while (true) do
-		local speedmult = (1 - (Spring.GetUnitRulesParam(unitID,"slowState") or 0))*SPEED
+		local speedmult = (Spring.GetUnitRulesParam(unitID,"baseSpeedMult") or 1)*SPEED
 		
-		Move(pelvis, y_axis, 6.2, 4*speedmult)
-		
-		Turn(l_thigh, x_axis, -1.3, 1.4*speedmult)
-		Turn(l_leg, x_axis, 0.4, 1.4*speedmult)
-		Turn(l_foot, x_axis, 0.8, 1*speedmult)
-		
-		Turn(r_thigh, x_axis, -0.15, 0.9*speedmult)
-		Turn(r_leg, x_axis, 0.8, 0.6*speedmult)
-		Turn(r_foot, x_axis, -0.65, 1.5*speedmult)
-		
-		Sleep(500/speedmult)
-		
-		Move(pelvis, y_axis, 8.2, 4*speedmult)
+		Move(pelvis, y_axis, 8.2, 4*speedmult*start)
 		
 		Turn(l_thigh, x_axis, -0.6, 1.4*speedmult)
 		Turn(l_leg, x_axis, 0.5, 1*speedmult)
@@ -85,6 +73,8 @@ local function Walk()
 		Turn(r_thigh, x_axis, -0.6, 0.9*speedmult)
 		Turn(r_leg, x_axis, -0.3, 2.2*speedmult)
 		Turn(r_foot, x_axis, 0.3, 1.9*speedmult)
+		
+		start = 1
 		
 		Sleep(500/speedmult)
 		
@@ -111,6 +101,18 @@ local function Walk()
 		Turn(r_foot, x_axis, 0.1, 1.4*speedmult)
 		
 		Sleep(500/speedmult)
+		
+		Move(pelvis, y_axis, 6.2, 4*speedmult)
+		
+		Turn(l_thigh, x_axis, -1.3, 1.4*speedmult)
+		Turn(l_leg, x_axis, 0.4, 1.4*speedmult)
+		Turn(l_foot, x_axis, 0.8, 1*speedmult)
+		
+		Turn(r_thigh, x_axis, -0.15, 0.9*speedmult)
+		Turn(r_leg, x_axis, 0.8, 0.6*speedmult)
+		Turn(r_foot, x_axis, -0.65, 1.5*speedmult)
+		
+		Sleep(500/speedmult)
 	end
 end
 
@@ -118,7 +120,7 @@ local function StopWalk()
 	Signal(SIG_WALK)
 	SetSignalMask(SIG_WALK)
 	
-	Move(pelvis, y_axis, 0, 8)
+	Move(pelvis, y_axis, 0, 30)
 	
 	Turn(l_thigh, x_axis, 0, 2)
 	Turn(l_leg, x_axis, 0, 2)
@@ -151,8 +153,9 @@ local function FireDelayLoop()
 end
 
 function script.Create()
-	StartThread(SmokeUnit, smokePiece)
+	StartThread(GG.Script.SmokeUnit, smokePiece)
 	StartThread(FireDelayLoop)
+	Move(shot1, y_axis, -80)
 end
 
 local function RestoreAfterDelay()
@@ -162,11 +165,18 @@ local function RestoreAfterDelay()
 end
 
 function script.QueryWeapon(num) 
-	if num == 1 then return shotPieces[num][gun_1 + 1] end
+	if num == 1 then 
+		return shotPieces[num][gun_1 + 1] 
+	end
 	return shotPieces[num] 
 end
 
-function script.AimFromWeapon(num) return shot1 end
+function script.AimFromWeapon(num) 
+	--if num == 1 then
+	--	return shotPieces[num][gun_1 + 1] 
+	--end
+	return shot1
+end
 
 function script.AimWeapon(num, heading, pitch)
 	if num == 2 then 
@@ -176,7 +186,11 @@ function script.AimWeapon(num, heading, pitch)
 	Signal(SIG_AIM)
 	SetSignalMask(SIG_AIM)
 	
-	if not bAiming then
+	-- The aim check messes with unit targeting. This is not required for Felon as
+	-- it very rarely shoots at radar dots.
+	--GG.DontFireRadar_CheckAim(unitID)
+	
+	if (AIM_DELAY > 0) and (not bAiming) then
 		aimTime = AIM_DELAY
 	end
 	
@@ -191,17 +205,13 @@ function script.AimWeapon(num, heading, pitch)
 	return true
 end
 
-function script.BlockShot(num)
+function script.BlockShot(num, targetID)
 	if num == 2 then
 		return false
 	end
 
 	if aimTime <= 0 then
-		local shieldPow = select(2, spGetUnitShieldState(unitID))
-		if shieldPow > DRAIN then
-			spSetUnitShieldState(unitID, shieldPow - DRAIN)
-			return false
-		end
+		return (targetID and GG.DontFireRadar_CheckBlock(unitID, targetID)) or GG.DrainShieldAndCheckProjectilePenetrate(unitID, DRAIN, 0)
 	end
 	return true
 end
@@ -215,22 +225,22 @@ end
 function script.Killed(recentDamage, maxHealth)
 	local severity = recentDamage / maxHealth
 	if (severity <= .25) then
-		Explode(pelvis, sfxNone)
-		Explode(torso, sfxNone)
-		Explode(lbarrel, sfxNone)
-		Explode(rbarrel, sfxNone)
+		Explode(pelvis, SFX.NONE)
+		Explode(torso, SFX.NONE)
+		Explode(lbarrel, SFX.NONE)
+		Explode(rbarrel, SFX.NONE)
 		return 1 -- corpsetype
 	elseif (severity <= .5) then
-		Explode(pelvis, sfxNone)
-		Explode(torso, sfxShatter)
-		Explode(lbarrel, sfxShatter)
-		Explode(rbarrel, sfxShatter)
+		Explode(pelvis, SFX.NONE)
+		Explode(torso, SFX.SHATTER)
+		Explode(lbarrel, SFX.SHATTER)
+		Explode(rbarrel, SFX.SHATTER)
 		return 1 -- corpsetype
 	else
-		Explode(pelvis, sfxSmoke + sfxFire)
-		Explode(torso, sfxShatter)
-		Explode(lbarrel, sfxSmoke + sfxFire + sfxExplode)
-		Explode(rbarrel, sfxSmoke + sfxFire + sfxExplode)		
+		Explode(pelvis, SFX.SMOKE + SFX.FIRE)
+		Explode(torso, SFX.SHATTER)
+		Explode(lbarrel, SFX.SMOKE + SFX.FIRE + SFX.EXPLODE)
+		Explode(rbarrel, SFX.SMOKE + SFX.FIRE + SFX.EXPLODE)		
 		return 2 -- corpsetype
 	end
 end

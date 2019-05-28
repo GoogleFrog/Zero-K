@@ -107,10 +107,10 @@ local comms = {}
 --gets the name, color, and height of the commander
 local function GetCommAttributes(unitID, unitDefID)
   local team = GetUnitTeam(unitID)
-  local _, player = GetTeamInfo(team)
-  local name = GetPlayerInfo(player) or 'Robert Paulson'
+  local _, player = GetTeamInfo(team, false)
+  local name = GetPlayerInfo(player, false) or 'Robert Paulson'
   local r, g, b, a = GetTeamColor(team)
-  local height = UnitDefs[unitDefID].height + heightOffset
+  local height = Spring.Utilities.GetUnitHeight(UnitDefs[unitDefID]) + heightOffset
   local pm = spGetUnitPieceMap(unitID)
   local pmt = pm["torso"]
   if (pmt == nil) then 

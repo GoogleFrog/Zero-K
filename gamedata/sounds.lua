@@ -1,9 +1,8 @@
 -- see http://springrts.com/wiki/Sounds.lua for help
 local Sounds = {
 	SoundItems = {
-		--default = {
-		--pitchMod = 0.04,
-		--}
+		default = {
+		},
 		IncomingChat = {
 			--file = "sounds/talk.wav",
 			file = nil,
@@ -32,16 +31,16 @@ local Sounds = {
 		--]]	  
 		BladeSwing = {
 			file = "sounds/weapon/blade/blade_swing.wav",
-			pitchMod = 0.1,
-			gainMod = 0.1,
+			pitchmod = 0.1,
+			gainmod = 0.1,
 			pitch = 0.8,
 			gain = 0.9,
 			priority = 1,
 		},
 		BladeHit = {
 			file = "sounds/weapon/blade/blade_hit.wav",
-			pitchMod = 0.5,
-			gainMod = 0.2,
+			pitchmod = 0.5,
+			gainmod = 0.2,
 		},
 		DefaultsForSounds = { -- this are default settings
 			file = "ThisEntryMustBePresent.wav",
@@ -49,7 +48,7 @@ local Sounds = {
 			pitch = 1.0,
 			priority = 0,
 			maxconcurrent = 4, --- some reasonable limits
-			maxdist = FLT_MAX, --- no cutoff at all
+			maxdist = nil, --- no cutoff at all (engine defaults to FLT_MAX)
 		},
 		Sparks = {
 			file = "sounds/sparks.wav",
@@ -60,10 +59,26 @@ local Sounds = {
 			in3d = true,
 			rolloff = 4,
 		},
+		Launcher = {
+			file = "sounds/weapon/launcher.wav",
+			pitchmod = 0.05,
+			gainmod = 0,
+			gain = 2.4,
+		},
 		TorpedoHitVariable = {
 			file = "sounds/explosion/wet/ex_underwater.wav",
-			pitchMod = 0.1,
-			gainMod = 0.05,
+			pitchmod = 0.1,
+			gainmod = 0.05,
+		},
+		Jump = {
+			file = "sounds/jump.wav",
+			pitchmod = 0.1,
+			gainmod = 0.05,
+		},
+		JumpLand = {
+			file = "sounds/jump_land.wav",
+			pitchmod = 0.1,
+			gainmod = 0.05,
 		},
 	},
 }
@@ -77,17 +92,21 @@ local optionOverrides = {
 }
 
 local defaultOpts = {
-	pitchMod = 0, --0.02,
-	gainMod = 0,
+	pitchmod = 0, --0.02,
+	gainmod = 0,
 }
 local replyOpts = {
-	pitchMod = 0, --0.02,
-	gainMod = 0,
+	pitchmod = 0, --0.02,
+	gainmod = 0,
 }
 
 local noVariation = {
-	dopplerscale  = 0,
+	dopplerscale = 0,
 	in3d = false,
+	pitchmod = 0,
+	gainmod = 0,
+	pitch = 1,
+	gain = 1,
 }
 
 local ignoredExtensions = {
@@ -99,10 +118,12 @@ local function AutoAdd(subDir, generalOpts)
 	local opts
 	local dirList = RecursiveFileSearch("sounds/" .. subDir)
 	--local dirList = RecursiveFileSearch("sounds/")
+	--Spring.Echo("Adding sounds for " .. subDir)
 	for _, fullPath in ipairs(dirList) do
-    	local path, key, ext = fullPath:match("sounds/(.*/(.*)%.(.*))")
+		local path, key, ext = fullPath:match("sounds/(.*/(.*)%.(.*))")
 		local pathPart = fullPath:match("(.*)[.]")
 		pathPart = pathPart:sub(8, -1)	-- truncates extension fullstop and "sounds/" part of path
+		--Spring.Echo(pathPart)
 		if path ~= nil and (not ignoredExtensions[ext]) then
 			if optionOverrides[pathPart] then
 				opts = optionOverrides[pathPart]
@@ -114,14 +135,15 @@ local function AutoAdd(subDir, generalOpts)
 			Sounds.SoundItems[pathPart] = {
 				file = tostring('sounds/'..path), 
 				rolloff = opts.rollOff, 
-				dopplerscale = opts.dopplerScale, 
-				maxdist = opts.maxDist, 
-				maxconcurrent = opts.maxConcurrent, 
+				dopplerscale = opts.dopplerscale, 
+				maxdist = opts.maxdist, 
+				maxconcurrent = opts.maxconcurrent, 
 				priority = opts.priority, 
+				in3d = opts.in3d,
 				gain = opts.gain, 
-				gainmod = opts.gainMod, 
+				gainmod = opts.gainmod, 
 				pitch = opts.pitch, 
-				pitchmod = opts.pitchMod
+				pitchmod = opts.pitchmod
 			}
 			--Spring.Echo(Sounds.SoundItems[key].file)
 		end

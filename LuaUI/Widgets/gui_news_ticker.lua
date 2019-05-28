@@ -1,7 +1,7 @@
 function widget:GetInfo()
 	return {
 		name	= "News Ticker",
-		desc	= "v1.011 Keeps you up to date on important battlefield events",
+		desc	= "v1.012 Keeps you up to date on important battlefield events",
 		author	= "KingRaptor",
 		date	= "July 26, 2009",
 		license	= "GNU GPL, v2 or later",
@@ -9,11 +9,12 @@ function widget:GetInfo()
 		enabled	= false  --  loaded by default?
 	}
 end
+include("Widgets/COFCTools/ExportUtilities.lua")
+VFS.Include("LuaRules/Configs/constants.lua")
 
 --[[
 -- Features:
 _ Informs player of unit completion/death events, with sound events depending of incomes ( so no constant 'unit operational unit operational unit operational' when building heaps of peewees).
-
 -- To do:
 _ Maybe fusion this with minimap_events.lua and unit_marker.lua as they have a pretty similar task, maybe even unit_sounds.
 --]]
@@ -47,8 +48,8 @@ local UPDATE_PERIOD = 0.03	-- seconds
 local UPDATE_PERIOD_LONG = 0.5	-- seconds
 local UPDATE_PERIOD_RESOURCES = 90	-- gameframes
 local RESOURCE_WARNING_PERIOD = 900	-- gameframes
-local OD_BUFFER = 10000
 local MAX_EVENTS = 20
+local metalMap = false
 
 local mIncome = 0
 
@@ -115,7 +116,7 @@ options = {
 		name = "Use Sounds",
 		type = "bool",
 		value = true,
-		desc = "Hides the visible bar",
+		desc = "Voice announcements for events.",
 	},
 	
 }
@@ -123,8 +124,8 @@ options = {
 local timeoutConstant = 60
 
 local sounds = {
-	unitComplete = {file = "LuaUI/sounds/voices/productionc_arm_1.wav"},
-	structureComplete = {file = "LuaUI/sounds/voices/constructionc_arm_1.wav"},
+	unitComplete = {file = "sounds/reply/advisor/unit_operational.wav"},
+	structureComplete = {file = "sounds/reply/advisor/construction_complete.wav"},
 	factoryIdle = {file = "sounds/reply/advisor/factory_idle.wav"},
 	
 	aircraftShotDown = {file = "sounds/reply/advisor/aircraft_shot_down.wav"},
@@ -184,7 +185,7 @@ local function AddEvent(str, unitDefID, color, sound, pos)
 		
 		local posTable
 		if pos then
-			posTable = { function() Spring.SetCameraTarget(pos[1], pos[2], pos[3], 1) end }
+			posTable = { function() SetCameraTarget(pos[1], pos[2], pos[3], 1) end }
 		end
 		
 		
@@ -291,13 +292,15 @@ end
 function widget:GameFrame(n)
 	if n%UPDATE_PERIOD_RESOURCES == 0 then
 		local mlevel, mstore,mpull,mincome = spGetTeamRes(myTeam, "metal")
+		mstore = mstore - HIDDEN_STORAGE
 		mIncome = mincome	-- global = our local
-		if mlevel/mstore >= 0.95 and lastMExcessEvent + RESOURCE_WARNING_PERIOD < n then
+		if mstore > 0 and mlevel/mstore >= 0.95 and (not metalMap) and lastMExcessEvent + RESOURCE_WARNING_PERIOD < n then
 			AddEvent("Excessing metal", nil, colorYellow, "excessMetal")
 			lastMExcessEvent = n
 		end
 		local elevel,estore,epull,eincome = spGetTeamRes(myTeam, "energy")
-		if elevel/(estore - OD_BUFFER) <= 0.2 and lastEStallEvent + RESOURCE_WARNING_PERIOD < n  then
+		estore = estore - HIDDEN_STORAGE
+		if estore > 0 and  elevel/estore <= 0.2 and lastEStallEvent + RESOURCE_WARNING_PERIOD < n  then
 			AddEvent("Stalling energy", nil, colorOrange, "stallingEnergy")
 			lastEStallEvent = n
 		end
@@ -311,7 +314,7 @@ function widget:UnitEnteredLos(unitID, unitTeam)
 		if unitDef.canFly and not airSpotted then
 			AddEvent("Enemy aircraft spotted", nil, colorRed, "enemyAirSpotted", pos)
 			airSpotted = true
-		elseif unitDef.name == "corsilo" and not nukeSpotted then
+		elseif unitDef.name == "staticnuke" and not nukeSpotted then
 			AddEvent("Enemy nuke silo spotted", nil, colorRed, "enemyNukeSpotted", pos)
 			nukeSpotted = true			
 		end
@@ -330,13 +333,14 @@ function widget:UnitDestroyed(unitID, unitDefID, unitTeam)
 	
 	local pos = {Spring.GetUnitPosition(unitID)}
 	
-	if (ud.canFly) then AddEvent(ud.humanName .. " shot down", unitDefID, colorRed, "aircraftShotDown", pos)
-	elseif (ud.isFactory) then AddEvent(ud.humanName .. ": factory destroyed", unitDefID, colorRed, "buildingDestroyed", pos)
-	elseif (ud.customParams.commtype) then AddEvent(ud.humanName .. ": commander lost", unitDefID, colorRed, "commanderLost", pos)
-	elseif (ud.isBuilding) then AddEvent(ud.humanName .. ": building destroyed", unitDefID, colorRed, "buildingDestroyed", pos)
-	elseif (ud.modCategories.ship) or (ud.modCategories.sub) then AddEvent(ud.humanName .. " sunk", unitDefID, colorRed, "unitLost", pos)
-	elseif (ud.isBuilder) then AddEvent(ud.humanName .. ": constructor lost", unitDefID, colorRed, "unitLost", pos)
-	else AddEvent(ud.humanName .. ": unit lost", unitDefID, colorRed, "unitLost", pos)
+	local humanName = Spring.Utilities.GetHumanName(ud)
+	if (ud.canFly) then AddEvent(humanName .. " shot down", unitDefID, colorRed, "aircraftShotDown", pos)
+	elseif (ud.isFactory) then AddEvent(humanName .. ": factory destroyed", unitDefID, colorRed, "buildingDestroyed", pos)
+	elseif (ud.customParams.commtype) then AddEvent(humanName .. ": commander lost", unitDefID, colorRed, "commanderLost", pos)
+	elseif (ud.isImmobile) then AddEvent(humanName .. ": building destroyed", unitDefID, colorRed, "buildingDestroyed", pos)
+	elseif (ud.modCategories.ship) or (ud.modCategories.sub) then AddEvent(humanName .. " sunk", unitDefID, colorRed, "unitLost", pos)
+	elseif (ud.isBuilder) then AddEvent(humanName .. ": constructor lost", unitDefID, colorRed, "unitLost", pos)
+	else AddEvent(humanName .. ": unit lost", unitDefID, colorRed, "unitLost", pos)
 	end
 end
 
@@ -350,10 +354,12 @@ function widget:UnitFinished(unitID, unitDefID, unitTeam)
 	-- cheap units aren't newsworthy unless they're builders
 	if ((not ud.isBuilder) and (UnitDefs[unitDefID].metalCost < (mIncome * options.minCostMult.value) and useCompleteMinCost)) or noMonitor[unitDefID] then return end
 	local pos = {Spring.GetUnitPosition(unitID)}
+	
+	local humanName = Spring.Utilities.GetHumanName(ud)
 	if (not ud.canMove) or (ud.isFactory) then
-		AddEvent(ud.humanName .. ": construction completed", unitDefID, colorGreen, "structureComplete", pos)
+		AddEvent(humanName .. ": construction completed", unitDefID, colorGreen, "structureComplete", pos)
 	else
-		AddEvent(ud.humanName .. ": unit operational", unitDefID, colorGreen, "unitComplete", pos)
+		AddEvent(humanName .. ": unit operational", unitDefID, colorGreen, "unitComplete", pos)
 	end
 end
 
@@ -361,7 +367,7 @@ function widget:UnitIdle(unitID, unitDefID, unitTeam)
 	local ud = UnitDefs[unitDefID]
 	if ud.isFactory and (spGetTeam(unitID) == myTeam) then
 		local pos = {Spring.GetUnitPosition(unitID)}
-		AddEvent(ud.humanName .. ": factory idle", unitDefID, colorYellow, "factoryIdle", pos)
+		AddEvent(Spring.Utilities.GetHumanName(ud) .. ": factory idle", unitDefID, colorYellow, "factoryIdle", pos)
 	end
 end
 
@@ -369,7 +375,7 @@ function widget:TeamDied(teamID)
 	local player = Spring.GetPlayerList(teamID)[1]
 	-- chicken team has no players (normally)
 	if player then
-		local playerName = Spring.GetPlayerInfo(player)
+		local playerName = Spring.GetPlayerInfo(player, false)
 		AddEvent(playerName .. ' died', nil, colorOrange)
 	end
 end
@@ -377,14 +383,14 @@ end
 --[[
 function widget:TeamChanged(teamID)
 	--// ally changed
-	local playerName = Spring.GetPlayerInfo(Spring.GetPlayerList(teamID)[1])
+	local playerName = Spring.GetPlayerInfo(Spring.GetPlayerList(teamID)[1], false)
 	widget:AddWarning(playerName .. ' allied')
 end
 --]]
 
 function widget:PlayerChanged(playerID)
-	local playerName,active,isSpec,teamID = Spring.GetPlayerInfo(playerID)
-  local _,_,isDead = Spring.GetTeamInfo(teamID)
+	local playerName,active,isSpec,teamID = Spring.GetPlayerInfo(playerID, false)
+  local _,_,isDead = Spring.GetTeamInfo(teamID, false)
 	if (isSpec) then
 		if not isDead then
 			AddEvent(playerName .. ' resigned', nil, colorOrange)
@@ -395,7 +401,7 @@ function widget:PlayerChanged(playerID)
 end
 
 function widget:PlayerRemoved(playerID, reason)
-	local playerName,active,isSpec = Spring.GetPlayerInfo(playerID)
+	local playerName,active,isSpec = Spring.GetPlayerInfo(playerID, false)
 	if spec then return end
 	if reason == 0 then
 		AddEvent(playerName .. ' timed out', nil, colorOrange)
@@ -413,7 +419,8 @@ function widget:Initialize()
 		widgetHandler:RemoveWidget(widget)
 		return
 	end
-
+	metalMap = (not Spring.GetGameRulesParam("mex_count") or Spring.GetGameRulesParam("mex_count") == -1)
+	--Spring.Echo("Is metal map: " .. tostring(metalMap))
 	-- setup Chili
 	Chili = WG.Chili
 	Label = Chili.Label

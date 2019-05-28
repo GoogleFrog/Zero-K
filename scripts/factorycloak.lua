@@ -16,7 +16,7 @@ local pipesl = piece "pipesl"
 
 -- action pieces
 local nanoPieces = { claw1 }
-local smokePiece = { base }
+local smokePiece = { doorl, doorr, roofr, roofl, arm1, arm2 }
 
 local function Open ()
 	SetSignalMask (1)
@@ -83,7 +83,7 @@ function script.Create()
 	Turn (pipesl, z_axis, math.rad(40))
 	Turn (pipesr, z_axis, math.rad(-40))
 
-	StartThread (SmokeUnit, smokePiece)
+	StartThread (GG.Script.SmokeUnit, smokePiece)
 	Spring.SetUnitNanoPieces (unitID, nanoPieces)
 end
 

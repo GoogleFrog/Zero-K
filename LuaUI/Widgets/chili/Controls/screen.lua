@@ -25,12 +25,12 @@ local inherited = this.inherited
 --//=============================================================================
 
 function Screen:New(obj)
-  local vsx,vsy = gl.GetViewSizes()
+  local vsx,vsy = Spring.GetViewSizes()
   if ((obj.width or -1) <= 0) then
     obj.width = vsx
   end
   if ((obj.height or -1) <= 0) then
-    obj.height = vsy
+    obj.height = math.ceil(vsy)
   end
 
   obj = inherited.New(self,obj)
@@ -88,6 +88,9 @@ function Screen:ScreenToClient(x,y)
   return x, y
 end
 
+function Screen:UnscaledClientToScreen(x,y)
+  return x*WG.uiScale, y*WG.uiScale
+end
 
 function Screen:ClientToScreen(x,y)
   return x, y
@@ -103,11 +106,15 @@ function Screen:IsRectInView(x,y,w,h)
 end
 
 
+function Screen:IsVisibleOnScreen()
+  return true
+end
+
 --//=============================================================================
 
 function Screen:Resize(w,h)
-	self.width = w
-	self.height = h
+	self.width = math.ceil(w)
+	self.height = math.ceil(h)
 	self:CallChildren("RequestRealign")
 end
 
@@ -120,8 +127,22 @@ function Screen:Update(...)
 	local hoveredControl = UnlinkSafe(self.hoveredControl)
 	local activeControl = UnlinkSafe(self.activeControl)
 	if hoveredControl and (not activeControl) then
-		local x, y = Spring.GetMouseState()
-		y = select(2,gl.GetViewSizes()) - y
+		local x, y, lmb, mmb, rmb, outsideSpring = Spring.GetMouseState()
+		if outsideSpring then
+			if self.currentTooltip then
+				self.currentTooltip = nil
+			end
+			if self.activeControl then
+				self.activeControl:MouseOut()
+				self.activeControl = nil
+			end
+			if self.hoveredControl then
+				self.hoveredControl:MouseOut()
+				self.hoveredControl = nil
+			end
+			return
+		end
+		y = select(2,Spring.GetViewSizes()) - y
 		local cx,cy = hoveredControl:ScreenToLocal(x, y)
 		hoveredControl:MouseMove(cx, cy, 0, 0)
 	end
@@ -131,10 +152,11 @@ end
 function Screen:IsAbove(x,y,...)
   local activeControl = UnlinkSafe(self.activeControl)
   if activeControl then
+    self.currentTooltip = activeControl.tooltip
     return true
   end
 
-  y = select(2,gl.GetViewSizes()) - y
+  y = select(2,Spring.GetViewSizes()) - y
   local hoveredControl = inherited.IsAbove(self,x,y,...)
 
   --// tooltip
@@ -167,7 +189,7 @@ end
 
 
 function Screen:MouseDown(x,y,...)
-  y = select(2,gl.GetViewSizes()) - y
+  y = select(2,Spring.GetViewSizes()) - y
 
   local activeControl = inherited.MouseDown(self,x,y,...)
   self.activeControl = MakeWeakLink(activeControl, self.activeControl)
@@ -189,7 +211,7 @@ end
 
 
 function Screen:MouseUp(x,y,...)
-  y = select(2,gl.GetViewSizes()) - y
+  y = select(2,Spring.GetViewSizes()) - y
 
   local activeControl = UnlinkSafe(self.activeControl)
   if activeControl then
@@ -225,7 +247,7 @@ end
 
 
 function Screen:MouseMove(x,y,dx,dy,...)
-  y = select(2,gl.GetViewSizes()) - y
+  y = select(2,Spring.GetViewSizes()) - y
   local activeControl = UnlinkSafe(self.activeControl)
   if activeControl then
     local cx,cy = activeControl:ScreenToLocal(x,y)
@@ -245,7 +267,7 @@ end
 
 
 function Screen:MouseWheel(x,y,...)
-  y = select(2,gl.GetViewSizes()) - y
+  y = select(2,Spring.GetViewSizes()) - y
   local activeControl = UnlinkSafe(self.activeControl)
   if activeControl then
     local cx,cy = activeControl:ScreenToLocal(x,y)
@@ -269,6 +291,15 @@ function Screen:KeyPress(...)
 		return (not not focusedControl:KeyPress(...))
 	end
 	return (not not inherited:KeyPress(...))
+end
+
+
+function Screen:TextInput(...)
+        local focusedControl = UnlinkSafe(self.focusedControl)
+        if focusedControl then
+                return (not not focusedControl:TextInput(...))
+        end
+        return (not not inherited:TextInput(...))
 end
 
 --//=============================================================================

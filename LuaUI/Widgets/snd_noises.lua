@@ -37,17 +37,19 @@ end
 
 local GetSelectedUnits	= Spring.GetSelectedUnits
 local GetUnitDefID		= Spring.GetUnitDefID
-local GetGameSeconds	= Spring.GetGameSeconds
+local osClock			= os.clock
 local spInView			= Spring.IsUnitInView
 local PlaySoundFile		= Spring.PlaySoundFile
 local spGetUnitHealth	= Spring.GetUnitHealth
 
+local toleranceTime = Spring.GetConfigInt('DoubleClickTime', 300) * 0.001 -- no event to notify us if this changes but not really a big deal
+
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
 
-options_path = 'Settings/Audio/Unit Replies'
+options_path = 'Settings/Audio'
 options_order = { 
-'selectnoisevolume','ordernoisevolume','attacknoisevolume', 
+'selectnoisevolume','ordernoisevolume','attacknoisevolume', 'commandSoundCooldown', 'selectSoundCooldown',
 }
 options = {
 	selectnoisevolume = {
@@ -57,6 +59,8 @@ options = {
 		min = 0,
 		max = 1,
 		step = 0.02,
+		simpleMode = true,
+		everyMode = true,
 	},
 	ordernoisevolume = {
 		name = 'Command Volume',
@@ -65,6 +69,8 @@ options = {
 		min = 0,
 		max = 1,
 		step = 0.02,
+		simpleMode = true,
+		everyMode = true,
 	},
 	attacknoisevolume = {
 		name = 'Commander Under Attack Volume',
@@ -73,6 +79,24 @@ options = {
 		min = 0,
 		max = 1,
 		step = 0.02,
+		simpleMode = true,
+		everyMode = true,
+	},
+	commandSoundCooldown = {
+		name = 'Command Reply Cooldown',
+		type = "number", 
+		value = 0.05, 
+		min = 0,
+		max = 0.5,
+		step = 0.005,
+	},
+	selectSoundCooldown = {
+		name = 'Select Reply Cooldown',
+		type = "number", 
+		value = toleranceTime, 
+		min = 0,
+		max = 0.5,
+		step = 0.005,
 	},
 }
 
@@ -86,10 +110,14 @@ local SOUNDTABLE_FILENAME = LUAUI_DIRNAME.."Configs/sounds_noises.lua"
 local soundTable = VFS.Include(SOUNDTABLE_FILENAME, nil, VFS.RAW_FIRST)
 local myTeamID
 local cooldown = {}
-local previousSelection
 
-local unitInSelection = {}
-local doNotPlayNextSelection = false
+VFS.Include("LuaRules/Configs/customcmds.h.lua")
+
+local widgetCMD = {
+	[CMD_EMBARK] = true,
+	[CMD_DISEMBARK] = true,
+	[CMD_TRANSPORTTO] = true,
+}
 
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
@@ -107,34 +135,19 @@ end
 
 local function CoolNoisePlay(category, cooldownTime, volume) 
 	cooldownTime = cooldownTime or 0
-	local t = GetGameSeconds()
+	local t = osClock()
 	if ( (not cooldown[category]) or ((t - cooldown[category]) > cooldownTime) ) then
-		playSound(category, volume or 1, 'userinterface')
+		playSound(category, volume or 1, 'userinterface') -- not using 'unitreply' because only 1 can play at a time, the next cutting off the first
 		cooldown[category] = t
 	end
 end
 
-function widget:Initialize()
-	local _, _, spec, team = Spring.GetPlayerInfo(Spring.GetMyPlayerID()) 
-	myTeamID = team
-	WG.noises = true
-end
-
-function widget:Shutdown()
-	WG.noises = nil
-end
-
-function widget:SelectionChanged(selection)
-	if doNotPlayNextSelection then
-		doNotPlayNextSelection = false
+function widget:SelectionChanged(selection, subselection)
+	if subselection then
 		return
 	end
 	if (not selection[1]) then
 		return
-	end
-	unitInSelection = {}
-	for i = 1, #selection do
-		unitInSelection[selection[i]] = true
 	end
 	local unitDefID = GetUnitDefID(selection[1])
 	if (unitDefID) then --only make sound when selecting own units
@@ -142,7 +155,7 @@ function widget:SelectionChanged(selection)
 		if (unitName and soundTable[unitName]) then
 			local sound = soundTable[unitName].select[1]
 			if (sound) then
-				CoolNoisePlay((sound), 0.5, (soundTable[unitName].select.volume or 1)*options.selectnoisevolume.value)
+				CoolNoisePlay((sound), options.selectSoundCooldown.value, (soundTable[unitName].select.volume or 1)*options.selectnoisevolume.value)
 			end
 		end
 	end
@@ -155,11 +168,27 @@ function WG.sounds_gaveOrderToUnit(unitID, isBuild)
 		local sounds = soundTable[unitName] or soundTable[default]
 		if not isBuild then
 			if (sounds and sounds.ok) then
-				CoolNoisePlay(sounds.ok[1], 0.5, sounds.ok.volume)
+				CoolNoisePlay(sounds.ok[1], options.commandSoundCooldown.value, sounds.ok.volume)
 			end
 		elseif (sounds and sounds.build) then
-			CoolNoisePlay(sounds.build, 0.5)
+			CoolNoisePlay(sounds.build, options.commandSoundCooldown.value)
 		end
+	end
+end
+
+local function PlayResponse(unitID, cmdID, cooldown)
+	local unitDefID = GetUnitDefID(unitID)
+	if not (unitDefID and UnitDefs[unitDefID]) then
+		return false
+	end
+	local unitName = UnitDefs[unitDefID].name
+	local sounds = soundTable[unitName] or soundTable[default]
+	if cmdID and (CMD[cmdID] or widgetCMD[cmdID] or cmdID > 0) then
+		if (sounds and sounds.ok) then
+			CoolNoisePlay(sounds.ok[1], options.commandSoundCooldown.value, (sounds.ok.volume or 1)*options.ordernoisevolume.value)
+		end
+	elseif (sounds and sounds.build) then
+		CoolNoisePlay(sounds.build, options.commandSoundCooldown.value, options.ordernoisevolume.value)
 	end
 end
 
@@ -168,25 +197,16 @@ function widget:CommandNotify(cmdID)
 	if (not unitID) then
 		return
 	end
-	local unitDefID = GetUnitDefID(unitID)
-	local unitName = UnitDefs[unitDefID].name
-	local sounds = soundTable[unitName] or soundTable[default]
-	if (CMD[cmdID]) then
-		if (sounds and sounds.ok) then
-			CoolNoisePlay(sounds.ok[1], 0.5, (sounds.ok.volume or 1)*options.ordernoisevolume.value)
-		end
-	elseif (sounds and sounds.build) then
-		CoolNoisePlay(sounds.build, 0.5, options.ordernoisevolume.value)
-	end
+	PlayResponse(unitID, cmdID)
 end
 
 function widget:UnitDamaged(unitID, unitDefID, unitTeam, damage)
-	if (unitTeam == myTeamID)  and damage>1 then
+	if (unitTeam == myTeamID) and damage > 1 then
 		local unitDefID = GetUnitDefID(unitID)
 		local unitName = UnitDefs[unitDefID].name
 		local sounds = soundTable[unitName] or soundTable[default]
 		if sounds and sounds.underattack and sounds.underattack[1] and (sounds.attackonscreen or not spInView(unitID)) then
-			if sounds.attackdelay then
+			if sounds.attackdelay and WG.ModularCommAPI.IsStarterComm and WG.ModularCommAPI.IsStarterComm(unitID) then
 				local health, maxhealth = spGetUnitHealth(unitID)
 				CoolNoisePlay(sounds.underattack[1], sounds.attackdelay(health/maxhealth), (sounds.underattack.volume or 1)*options.attacknoisevolume.value)
 			else
@@ -196,10 +216,24 @@ function widget:UnitDamaged(unitID, unitDefID, unitTeam, damage)
 	end
 end
 
-function widget:UnitDestroyed(unitID, unitDefID, unitTeam)
-	if unitInSelection[unitID] then
-		doNotPlayNextSelection = true
-	end
+--------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
+-- External Functions
+
+local externalFunctions = {}
+
+function externalFunctions.PlayResponse(unitID, cmdID)
+	PlayResponse(unitID, cmdID)
+end
+
+function widget:Initialize()
+	local _, _, spec, team = Spring.GetPlayerInfo(Spring.GetMyPlayerID(), false)
+	myTeamID = team
+	WG.noises = externalFunctions
+end
+
+function widget:Shutdown()
+	WG.noises = nil
 end
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------

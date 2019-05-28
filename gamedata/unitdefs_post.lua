@@ -1,14 +1,17 @@
--- $Id: unitdefs_post.lua 4656 2009-05-23 23:41:24Z carrepairer $
---------------------------------------------------------------------------------
---------------------------------------------------------------------------------
 
 local modOptions = {}
 if (Spring.GetModOptions) then
   modOptions = Spring.GetModOptions()
 end
 
-local reverseCompat = not((Game and true) or false) -- Game is nil in 91.0
+Spring.Echo("Loading UnitDefs_posts")
 
+--------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
+-- Constants?
+--
+
+local TRANSPORT_LIGHT_COST_MAX = 1000
 
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
@@ -29,20 +32,6 @@ local function tobool(val)
   return false
 end
 
-
-local function disableunits(unitlist)
-  for name, ud in pairs(UnitDefs) do
-    if (ud.buildoptions) then
-      for _, toremovename in ipairs(unitlist) do
-        for index, unitname in pairs(ud.buildoptions) do
-          if (unitname == toremovename) then
-            table.remove(ud.buildoptions, index)
-          end
-        end
-      end
-    end
-  end
-end
 
 --deep not safe with circular tables! defaults To false
 Spring.Utilities = Spring.Utilities or {}
@@ -81,8 +70,8 @@ for _, ud in pairs(UnitDefs) do
 --
 
 VFS.Include('gamedata/modularcomms/unitdefgen.lua')
-
 VFS.Include('gamedata/planetwars/pw_unitdefgen.lua')
+local Utilities = VFS.Include('gamedata/utilities.lua')
 
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
@@ -100,7 +89,7 @@ local function TableToString(tbl)
 	    else
 		str = str .. [[["]]..i..[["] = ]]
 	    end
-	    
+
 	    if type(v) == "table" then
 		str = str .. TableToString(v)
 	    elseif type(v) == "boolean" then
@@ -126,7 +115,7 @@ for name, ud in pairs(UnitDefs) do
 	    end
 	end
     end
-end 
+end
 
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
@@ -140,85 +129,13 @@ for name, ud in pairs(UnitDefs) do
 	end
 end
 
- 
---------------------------------------------------------------------------------
---------------------------------------------------------------------------------
---
--- Set unit faction and build options
---
-
-local function TagTree(unit, faction, newbuildoptions)
- -- local morphDefs = VFS.Include"LuaRules/Configs/morph_defs.lua"
-  
-  local function Tag(unit)
-    if (not UnitDefs[unit] or UnitDefs[unit].faction) then
-      return
-    end
-	local ud = UnitDefs[unit]
-    ud.faction = faction
-    if (UnitDefs[unit].buildoptions) and (ud.workertime and ud.workertime > 0) then
-	  if ud.maxvelocity and (ud.maxvelocity > 0) and unit ~= "armcsa" then
-	    ud.buildoptions = newbuildoptions
-	  end	
-	  for _, buildoption in ipairs(ud.buildoptions) do
-        Tag(buildoption)
-      end
-    end	
-    --if (morphDefs[unit]) then
-    --  if (morphDefs[unit].into) then
-    --    Tag(morphDefs[unit].into)
-    --  else
-    --    for _, t in ipairs(morphDefs[unit]) do
-    --      Tag(t.into)
-    --    end
-    --  end        
-    --end
-  
-  end
-
-  Tag(unit)
-end
-
-local function ProcessCommBuildOpts()
-	local chassisList = {"armcom", "corcom", "commrecon", "commsupport", "cremcom", "benzcom"}
-	local commanders = {}
-	local numLevels = 5
-	
-	local buildOpts = VFS.Include("gamedata/buildoptions.lua")
-	
-    if modOptions and tobool(modOptions.iwinbutton) then
-        buildOpts[#buildOpts+1] = 'iwin'
-    end
-    
-	for _, name in pairs(chassisList) do
-		for i=1, numLevels do
-			commanders[#commanders + 1] = name..i
-		end
-	end
-	
-	--add procedural comms
-	for name in pairs(commDefs) do
-		commanders[#commanders + 1] = name
-	end
-	
-	commanders[#commanders + 1] = "neebcomm"
-	commanders[#commanders + 1] = "commbasic"
-
-	for _,name in pairs(commanders) do
-		TagTree(name, "arm", buildOpts)
-	end
-end
-ProcessCommBuildOpts()
-
+-- Set build options
+local buildOpts = VFS.Include("gamedata/buildoptions.lua")
 for name, ud in pairs(UnitDefs) do
-	--Spring.Echo(name, ud.faction)
-	if not name:find("chicken") then
-		ud.faction = "arm"
-	else
-		ud.faction = "chicken"
+	if ud.buildoptions and (#ud.buildoptions == 0) then
+		ud.buildoptions = buildOpts
 	end
-end 
-
+end
 
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
@@ -250,122 +167,152 @@ end
 
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
--- Units with shields cannot cloak
+-- Tell UnitDefs about script_reload and script_burst
 --
---Spring.Echo("Shield Weapon Def")
+
 for name, ud in pairs(UnitDefs) do
-	local hasShield = false
-	if ud.weapondefs then
-		for _, wd in pairs(ud.weapondefs) do      
-			if wd.weapontype == "Shield" then
-				hasShield = true
-				break
+	if not ud.customparams.dynamic_comm then
+		if ud.weapondefs then
+			for _, wd in pairs(ud.weapondefs) do
+				if wd.customparams and wd.customparams.script_reload then
+					ud.customparams.script_reload = wd.customparams.script_reload
+				end
+				if wd.customparams and wd.customparams.script_burst then
+					ud.customparams.script_burst = wd.customparams.script_burst
+				end
+				if wd.customparams and wd.customparams.post_capture_reload then
+					ud.customparams.post_capture_reload = wd.customparams.post_capture_reload
+				end
+				wd.customparams = wd.customparams or {}
+				wd.customparams.is_unit_weapon = 1
 			end
 		end
 	end
-	if (hasShield or (((not ud.maxvelocity) or ud.maxvelocity == 0) and not ud.cloakcost)) then
-		ud.customparams.cannotcloak = 1
-		ud.mincloakdistance = 0
-		ud.cloakcost = nil
-		ud.cloakcostmoving = nil
-		ud.cancloak = false
+end
+
+--------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
+-- Units with shields cannot cloak
+-- Set easily readible shield power
+--
+--Spring.Echo("Shield Weapon Def")
+for name, ud in pairs(UnitDefs) do
+	if not ud.customparams.dynamic_comm then
+		local hasShield = false
+		if ud.weapondefs then
+			for _, wd in pairs(ud.weapondefs) do
+				if wd.weapontype == "Shield" then
+					hasShield = true
+					ud.customparams.shield_radius = wd.shieldradius
+					ud.customparams.shield_power = wd.shieldpower
+					ud.customparams.shield_recharge_delay = (wd.customparams or {}).shield_recharge_delay or wd.shieldrechargedelay
+					ud.customparams.shield_rate = (wd.customparams or {}).shield_rate or wd.shieldpowerregen
+					break
+				end
+			end
+		end
+		if (hasShield or (((not ud.maxvelocity) or ud.maxvelocity == 0) and not ud.cloakcost)) then
+			ud.customparams.cannotcloak = 1
+			ud.mincloakdistance = 0
+			ud.cloakcost = nil
+			ud.cloakcostmoving = nil
+			ud.cancloak = false
+		end
+	end
+end
+
+--------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
+-- UnitDefs Dont Repeat Yourself
+--
+local BP2RES = 0
+local BP2RES_FACTORY = 0
+local BP2TERRASPEED = 1000 --used to be 60 in most of the cases
+--local SEISMICSIG = 4 --used to be 4 in most of the cases
+for name, ud in pairs (UnitDefs) do
+	local cost = math.max (ud.buildcostenergy or 0, ud.buildcostmetal or 0, ud.buildtime or 0) --one of these should be set in actual unitdef file
+
+	--setting uniform buildTime, M/E cost
+	if not ud.buildcostenergy then ud.buildcostenergy = cost end
+	if not ud.buildcostmetal then ud.buildcostmetal = cost end
+	if not ud.buildtime then ud.buildtime = cost end
+
+	--setting uniform M/E storage
+	local storage = math.max (ud.metalstorage or 0, ud.energystorage or 0)
+	if storage > 0 then
+		if not ud.metalstorage then ud.metalstorage = storage end
+		if not ud.energystorage then ud.energystorage = storage end
+	end
+
+	--setting metalmake, energymake, terraformspeed for construction units
+	if tobool(ud.builder) and ud.workertime then
+		local bp = ud.workertime
+
+		local mult = (ud.customparams.dynamic_comm and 0) or 1
+		if ud.customparams.factorytab then
+			if not ud.metalmake then ud.metalmake = bp * BP2RES_FACTORY * mult end
+			if not ud.energymake then ud.energymake = bp * BP2RES_FACTORY * mult end
+		else
+			if not ud.metalmake then ud.metalmake = bp * BP2RES * mult end
+			if not ud.energymake then ud.energymake = bp * BP2RES * mult end
+		end
+
+		if not ud.terraformspeed then
+			ud.terraformspeed = bp * BP2TERRASPEED
+		end
+	end
+
+	--setting standard seismicSignature
+	--[[
+	if ud.floater or ud.canhover or ud.canfly then
+		if not ud.seismicsignature then ud.seismicsignature = 0 end
+	else
+		if not ud.seismicsignature then ud.seismicsignature = SEISMICSIG end
+	end
+	]]--
+
+	--setting levelGround
+	--[[
+	if (ud.isBuilding == true or ud.maxAcc == 0) and (not ud.customParams.mobilebuilding) then --looks like a building
+		if ud.levelGround == nil then
+			ud.levelGround = false -- or true
+		end
+	end
+	]]--
+end
+
+--------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
+-- Lua implementation of energyUse
+--
+
+for name, ud in pairs(UnitDefs) do
+	local energyUse = tonumber(ud.energyuse or 0)
+	if energyUse and (energyUse > 0) then
+		ud.customparams.upkeep_energy = energyUse
+		ud.energyuse = 0
 	end
 end
 
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
 -- Disable smoothmesh; allow use of airpads
--- 
+--
 
 for name, ud in pairs(UnitDefs) do
-    if (ud.canfly) then
+	if (ud.canfly) then
 		ud.usesmoothmesh = false
 		if not ud.maxfuel then
 			ud.maxfuel = 1000000
 			ud.refueltime = ud.refueltime or 1
 		end
-    end
-end 
-
---------------------------------------------------------------------------------
---------------------------------------------------------------------------------
--- Use old diving bomber for 91.0
-
-if reverseCompat then
-	for i, name in pairs(UnitDefs.factoryplane.buildoptions) do
-		if name == "bomberdive" then
-			UnitDefs.factoryplane.buildoptions[i] = "corshad"
-		end
 	end
 end
 
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
--- Different aircraft turn radius in new engine
-
-if not reverseCompat then
-	for name, ud in pairs(UnitDefs) do
-		if name == "fighter" then
-			ud.turnradius = 150
-			ud.maxrudder = 0.007
-		elseif name == "corvamp" then
-			ud.turnradius = 80
-			ud.maxrudder = 0.006
-		elseif name == "bomberdive" then
-			ud.turnradius = 40
-		elseif name == "corhurc2" then
-			ud.turnradius = 20
-		elseif name == "armstiletto_laser" then
-			ud.turnradius = 20
-		elseif name == "armcybr" then
-			ud.turnradius = 20
-		elseif "corawac" then
-			ud.turnradius = 60
-		end
-	end
-end
-
---------------------------------------------------------------------------------
---------------------------------------------------------------------------------
--- Increase pathable areas of yardmaps for new engine as a test.
-
-if not reverseCompat then
-	for name, ud in pairs(UnitDefs) do
-		if name == "factorytank" then
-			ud.yardmap = "oooooooooo oooooooooo oooooooooo ooccccccoo ooccccccoo yoccccccoy yoccccccoy yyccccccyy"
-		elseif name == "factoryveh" then
-			ud.yardmap = "yyoooyy yoooooy ooooooo occccco occccco occccco occccco"
-		elseif name == "factorycloak" then
-			ud.yardmap = "ooooooo ooooooo ooooooo occccco occccco occccco occccco"
-		end
-	end
-end
-
-
---------------------------------------------------------------------------------
---------------------------------------------------------------------------------
--- Aircraft Brake Rate is not multiplied by 0.1 in 94.1.1+
--- https://github.com/spring/spring/commit/8009eb548cc62162d9fd15f2914437f4ca63a198
-
-if not reverseCompat then
-	for name, ud in pairs(UnitDefs) do
-		if (ud.canfly) and not ud.isHoveringAirUnit then
-			ud.brakerate = (ud.brakerate or ud.acceleration or 0.5) * 0.8
-		end
-	end
-else
-	for name, ud in pairs(UnitDefs) do
-		if (ud.canfly) and not (ud.isFighter or ud.isBomber) then
-			ud.brakerate = (ud.brakerate or ud.acceleration or 0.5) * 20
-		end
-	end
-end
-
-
---------------------------------------------------------------------------------
---------------------------------------------------------------------------------
--- Maneuverablity Buff
--- 
+-- Maneuverability multipliers, useful for testing.
+-- TODO: migrate the x3 and x5 ones to defs, leave at x1 for easy testing
 
 local TURNRATE_MULT = 1
 local ACCEL_MULT = 3
@@ -374,65 +321,17 @@ local ACCEL_MULT_HIGH = 5
 for name, ud in pairs(UnitDefs) do
 	if ud.turnrate and ud.acceleration and ud.brakerate and ud.movementclass then
 		local class = ud.movementclass
-		
-		-- https://github.com/spring/spring/commit/8009eb548cc62162d9fd15f2914437f4ca63a198
-		if ud.acceleration == ud.brakerate and not reverseCompat then
-			ud.brakerate = ud.brakerate * 3
-		end
-		
+
+		ud.turnrate = ud.turnrate * TURNRATE_MULT
 		if class:find("TANK") or class:find("BOAT") or class:find("HOVER") then
-			ud.turnrate = ud.turnrate * TURNRATE_MULT
 			ud.acceleration = ud.acceleration * ACCEL_MULT_HIGH
 			ud.brakerate = ud.brakerate * ACCEL_MULT_HIGH*2
 		else
-			ud.turnrate = ud.turnrate * TURNRATE_MULT
 			ud.acceleration = ud.acceleration * ACCEL_MULT
 			ud.brakerate = ud.brakerate * ACCEL_MULT*2
 		end
 	end
 end
-
---------------------------------------------------------------------------------
---------------------------------------------------------------------------------
--- Special Air
---
-
---if (modOptions and tobool(modOptions.specialair)) then
---  local replacements = VFS.Include("LuaRules/Configs/specialair.lua")
---  if (replacements[modOptions.specialair]) then
---    replacements = replacements[modOptions.specialair]
---    for name, ud in pairs(UnitDefs) do
---      if (ud.buildoptions) then
---        for buildKey, buildOption in pairs(ud.buildoptions) do
---          if (replacements[buildOption]) then
---            ud.buildoptions[buildKey] = replacements[buildOption];
---          end
---        end
---      end
---    end
---  end
---end
-
-
---------------------------------------------------------------------------------
---------------------------------------------------------------------------------
--- Tactics GameMode
---
-
-if (modOptions and (modOptions.zkmode == "tactics")) then
-  -- remove all build options
-  Game = { gameSpeed = 30 };  --  required by tactics.lua
-  local options = VFS.Include("LuaRules/Configs/tactics.lua")
-  local customBuilds = options.customBuilds
-  for name, ud in pairs(UnitDefs) do
-    if tobool(ud.commander) then
-      ud.buildoptions = (customBuilds[name] or {}).allow or {}
-    else
-      ud.buildoptions = {}
-    end
-  end
-end
-
 
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
@@ -446,36 +345,14 @@ if (modOptions and modOptions.energymult) then
     if (em) then
       UnitDefs[name].energymake = em * modOptions.energymult
     end
-	-- for solars
-	em = (UnitDefs[name].energyuse and tonumber(UnitDefs[name].energyuse) < 0) and UnitDefs[name].energyuse
-	if (em) then
-      UnitDefs[name].energyuse = em * modOptions.energymult
-    end
   end
 end
 
--- FIXME: doesn't change wreck cost
-if (modOptions and modOptions.factorycostmult) then
-  for name, def in pairs(UnitDefs) do
-    if def.unitname:find("factory") or def.unitname == "armcsa" or def.unitname == "striderhub" then
-		def.buildcostmetal = def.buildcostmetal * modOptions.factorycostmult
-		def.buildcostenergy = def.buildcostenergy * modOptions.factorycostmult
-		def.buildtime = def.buildtime * modOptions.factorycostmult
+if (modOptions and modOptions.metalmult) then
+	for name in pairs(UnitDefs) do
+		UnitDefs[name].metalmake = (UnitDefs[name].metalmake or 0) * modOptions.metalmult
 	end
-  end
 end
---------------------------------------------------------------------------------
---------------------------------------------------------------------------------
--- OD mex divide by 20
---
-
-for _,ud in pairs(UnitDefs) do
-    local em = tonumber(ud.extractsmetal)
-    if (em) then
-		ud.extractsmetal = em * 0.05
-    end
-end
-
 
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
@@ -497,13 +374,13 @@ if (modOptions and modOptions.damagemult and modOptions.damagemult ~= 1) then
   for _, unitDef in pairs(UnitDefs) do
     if (unitDef.autoheal) then unitDef.autoheal = unitDef.autoheal * damagemult end
     if (unitDef.idleautoheal) then unitDef.idleautoheal = unitDef.idleautoheal * damagemult end
-    
-    if (unitDef.capturespeed) 
+
+    if (unitDef.capturespeed)
       then unitDef.capturespeed = unitDef.capturespeed * damagemult
       elseif (unitDef.workertime) then unitDef.capturespeed = unitDef.workertime * damagemult
     end
-    
-    if (unitDef.repairspeed) 
+
+    if (unitDef.repairspeed)
       then unitDef.repairspeed = unitDef.repairspeed * damagemult
       elseif (unitDef.workertime) then unitDef.repairspeed = unitDef.workertime * damagemult
     end
@@ -518,21 +395,21 @@ for name, ud in pairs(UnitDefs) do
 	if ud.turnrate and (ud.turnrate > 600 or ud.customparams.turnatfullspeed) then
 		ud.turninplace = false
 		ud.turninplacespeedlimit = (ud.maxvelocity or 0)
-	else
+	elseif ud.turninplace ~= true then
 		ud.turninplace = false	-- true
-		ud.turninplacespeedlimit = (ud.maxvelocity and ud.maxvelocity*0.6 or 0)
+		ud.turninplacespeedlimit = ud.turninplacespeedlimit or (ud.maxvelocity and ud.maxvelocity*0.6 or 0)
 		--ud.turninplaceanglelimit = 180
 	end
- 
+
 
 	if ud.category and not (ud.category:find("SHIP",1,true) or ud.category:find("SUB",1,true)) then
-		if (ud.maxvelocity) then 
+		if (ud.maxvelocity) and not ud.maxreversevelocity then
 			if not name:find("chicken",1,true) then
-				ud.maxreversevelocity = ud.maxvelocity * 0.33 
+				ud.maxreversevelocity = ud.maxvelocity * 0.33
 			end
 		end
 	end
-end 
+end
 
 -- Set to accelerate towards their destination regardless of heading
 for name, ud in pairs(UnitDefs) do
@@ -549,41 +426,29 @@ end
 for name, unitDef in pairs(UnitDefs) do
 	if (unitDef.repairspeed) then
 		unitDef.repairspeed = unitDef.repairspeed * 2
-	elseif (unitDef.workertime) then 
+	elseif (unitDef.workertime) then
 		unitDef.repairspeed = unitDef.workertime * 2
     end
 end
 
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
--- Lasercannons going through units fix
--- 
+-- Set higher default losEmitHeight. Engine default is 20.
+--
 
-for name, ud in pairs(UnitDefs) do
-  ud.collisionVolumeTest = 1
+for name, unitDef in pairs(UnitDefs) do
+	if not unitDef.losEmitHeight then
+		unitDef.losEmitHeight = 30
+    end
 end
 
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
--- Burrowed
--- 
-
---for name, ud in pairs(UnitDefs) do
---  if (ud.weapondefs) then
---    for wName,wDef in pairs(ud.weapondefs) do      
---      wDef.damage.burrowed = 0.001
---    end
---  end
---end --for
-
-
---------------------------------------------------------------------------------
---------------------------------------------------------------------------------
 -- Avoid firing at unarmed
--- 
+--
 for name, ud in pairs(UnitDefs) do
-	if (ud.weapons) then
-		for wName,wDef in pairs(ud.weapons) do     
+	if (ud.weapons and not ud.canfly) then
+		for wName,wDef in pairs(ud.weapons) do
 			if wDef.badtargetcategory then
 				wDef.badtargetcategory = wDef.badtargetcategory .. " STUPIDTARGET"
 			else
@@ -591,7 +456,13 @@ for name, ud in pairs(UnitDefs) do
 			end
 		end
 	end
-	ud.nochasecategory = (ud.nochasecategory or "") .. " STUPIDTARGET"
+	if not ud.customparams.chase_everything then
+		if not ud.canfly then
+			ud.nochasecategory = (ud.nochasecategory or "") .. " STUPIDTARGET"
+		else
+			ud.nochasecategory = (ud.nochasecategory or "") .. " SOLAR"
+		end
+	end
 end
 
 --------------------------------------------------------------------------------
@@ -601,7 +472,7 @@ end
 
 --for name, ud in pairs(UnitDefs) do
 --  if (ud.weapondefs) then
---    for wName,wDef in pairs(ud.weapondefs) do      
+--    for wName,wDef in pairs(ud.weapondefs) do
 --      wDef.avoidneutral = true
 --    end
 --  end
@@ -609,56 +480,46 @@ end
 
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
--- Set drones to take forever to build such that normal constructors do not complete them.
--- 
+-- Set airLOS
+--
 for name, ud in pairs(UnitDefs) do
-	if ud.customparams.is_drone then
-		ud.customparams.real_buildtime = ud.buildtime
-		ud.buildtime = ud.buildtime*1000000000
-	end
+	ud.airsightdistance = (ud.sightdistance or 0)
 end
 
 
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
 -- Set mass
--- 
+--
 for name, ud in pairs(UnitDefs) do
 	ud.mass = (((ud.buildtime/2) + (ud.maxdamage/8))^0.6)*6.5
 	if ud.customparams.massmult then
 		ud.mass = ud.mass*ud.customparams.massmult
 	end
 end
+
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
 -- Set incomes
 --
-if not reverseCompat then 
-	for name, ud in pairs(UnitDefs) do
-		if ud.metalmake and ud.metalmake > 0 then
-			ud.customparams.income_metal = ud.metalmake
-			ud.activatewhenbuilt = true
-			ud.metalmake = 0
-		end
-		if ud.energymake and ud.energymake > 0 then
-			ud.customparams.income_energy = ud.energymake
-			ud.activatewhenbuilt = true
-			ud.energymake = 0
-		end
+
+for name, ud in pairs(UnitDefs) do
+	if ud.metalmake and ud.metalmake > 0 then
+		ud.customparams.income_metal = ud.metalmake
+		ud.activatewhenbuilt = true
+		ud.metalmake = 0
 	end
-else
-	for name, ud in pairs(UnitDefs) do
-		if name == "armsolar" then
-			ud.energymake = 0
-			ud.energyuse = -2
-		end
+	if ud.energymake and ud.energymake > 0 then
+		ud.customparams.income_energy = ud.energymake
+		ud.activatewhenbuilt = true
+		ud.energymake = 0
 	end
 end
 
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
 -- Cost Checking
--- 
+--
 
 --for name, ud in pairs(UnitDefs) do
 --	if ud.buildcostmetal ~= ud.buildcostenergy or ud.buildtime ~= ud.buildcostenergy then
@@ -669,30 +530,8 @@ end
 
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
--- Min Build Range back to what it used to be
--- 
-for name, ud in pairs(UnitDefs) do
-	if ud.builddistance and ud.builddistance < 128 and name ~= "armasp" and name ~= "armcarry" then
-		ud.builddistance = 128 
-	end
-end
-
---------------------------------------------------------------------------------
---------------------------------------------------------------------------------
---  No leveling ground
-
-
---for name, ud in pairs(UnitDefs) do
---  if (ud.yardmap)  then
---    ud.levelGround = false
---  end
---end
-
-
---------------------------------------------------------------------------------
---------------------------------------------------------------------------------
 -- Festive units mod option (CarRepairer's WIP)
--- 
+--
 
 if (modOptions and tobool(modOptions.xmas)) then
   local gifts = {"present_bomb1.s3o","present_bomb2.s3o","present_bomb3.s3o"}
@@ -723,24 +562,9 @@ if (modOptions and tobool(modOptions.xmas)) then
   end --for
 end
 
---------------------------------------------------------------------------------
---------------------------------------------------------------------------------
--- Special Decloak
--- 
-if (modOptions and tobool(modOptions.specialdecloak)) then
-	for name, ud in pairs(UnitDefs) do
-		if not ud.customparams then
-			ud.customparams = {}
-		end
-		ud.customparams.specialdecloakrange = ud.mincloakdistance or 0
-		ud.mincloakdistance = 0
-	end
-end
 
---------------------------------------------------------------------------------
---------------------------------------------------------------------------------
 -- Remove initCloaked because cloak state is no longer used
--- 
+--
 
 for name, ud in pairs(UnitDefs) do
 	if tobool(ud.initcloaked) then
@@ -749,10 +573,136 @@ for name, ud in pairs(UnitDefs) do
 	end
 end
 
+
+--------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
+--
+-- Automatically generate some big selection volumes.
+--
+
+local function Explode(div, str)
+	if div == '' then
+		return false
+	end
+	local pos, arr = 0, {}
+	-- for each divider found
+	for st, sp in function() return string.find(str, div, pos, true) end do
+		table.insert(arr, string.sub(str, pos, st - 1)) -- Attach chars left of current divider
+		pos = sp + 1 -- Jump past current divider
+	end
+	table.insert(arr,string.sub(str,pos)) -- Attach chars right of last divider
+	return arr
+end
+
+local function GetDimensions(scale)
+	if not scale then
+		return false
+	end
+	local dimensionsStr = Explode(" ", scale)
+	-- string conversion (required for MediaWiki export)
+	local dimensions = {}
+	for i,v in pairs(dimensionsStr) do
+		dimensions[i] = tonumber(v)
+	end
+	local largest = (dimensions and dimensions[1] and tonumber(dimensions[1])) or 0
+	for i = 2, 3 do
+		largest = math.max(largest, (dimensions and dimensions[i] and tonumber(dimensions[i])) or 0)
+	end
+	return dimensions, largest
+end
+
+local VISUALIZE_SELECTION_VOLUME = false
+local CYL_SCALE = 1.1
+local CYL_LENGTH = 0.8
+local CYL_ADD = 5
+local SEL_SCALE = 1.5
+local STATIC_SEL_SCALE = 1.35
+
+for name, ud in pairs(UnitDefs) do
+	local scale = STATIC_SEL_SCALE
+	if ud.acceleration and ud.acceleration > 0 and ud.canmove then
+		scale = SEL_SCALE
+	end
+	if ud.customparams.selectionscalemult then
+		scale = ud.customparams.selectionscalemult
+	end
+	
+	if ud.collisionvolumescales or ud.selectionvolumescales then
+		-- Do not override default colvol because it is hard to measure.
+		
+		if ud.selectionvolumescales then
+			local dim = GetDimensions(ud.selectionvolumescales)
+			ud.selectionvolumescales  = math.ceil(dim[1]*scale) .. " " .. math.ceil(dim[2]*scale) .. " " .. math.ceil(dim[3]*scale)
+		else
+			local size = math.max(ud.footprintx or 0, ud.footprintz or 0)*15
+			if size > 0 then
+				local dimensions, largest = GetDimensions(ud.collisionvolumescales)
+				local x, y, z = size, size, size
+				if size > largest then
+					ud.selectionvolumeoffsets = ud.selectionvolumeoffsets or "0 0 0"
+					ud.selectionvolumetype    = ud.selectionvolumetype or "ellipsoid"
+				elseif string.lower(ud.collisionvolumetype) == "cylx" then
+					ud.selectionvolumeoffsets = ud.selectionvolumeoffsets or ud.collisionvolumeoffsets or "0 0 0"
+					x = dimensions[1]*CYL_LENGTH
+					y = math.max(dimensions[2], math.min(size, CYL_ADD + dimensions[2]*CYL_SCALE))
+					z = math.max(dimensions[3], math.min(size, CYL_ADD + dimensions[3]*CYL_SCALE))
+					ud.selectionvolumetype    = ud.selectionvolumetype or ud.collisionvolumetype
+				elseif string.lower(ud.collisionvolumetype) == "cyly" then
+					ud.selectionvolumeoffsets = ud.selectionvolumeoffsets or ud.collisionvolumeoffsets or "0 0 0"
+					x = math.max(dimensions[1], math.min(size, CYL_ADD + dimensions[1]*CYL_SCALE))
+					y = dimensions[2]*CYL_LENGTH
+					z = math.max(dimensions[3], math.min(size, CYL_ADD + dimensions[3]*CYL_SCALE))
+					ud.selectionvolumetype    = ud.selectionvolumetype or ud.collisionvolumetype
+				elseif string.lower(ud.collisionvolumetype) == "cylz" then
+					ud.selectionvolumeoffsets = ud.selectionvolumeoffsets or ud.collisionvolumeoffsets or "0 0 0"
+					x = math.max(dimensions[1], math.min(size, CYL_ADD + dimensions[1]*CYL_SCALE))
+					y = math.max(dimensions[2], math.min(size, CYL_ADD + dimensions[2]*CYL_SCALE))
+					z = dimensions[3]*CYL_LENGTH
+					ud.selectionvolumetype    = ud.selectionvolumetype or ud.collisionvolumetype
+				elseif string.lower(ud.collisionvolumetype) == "box" then
+					ud.selectionvolumeoffsets = ud.selectionvolumeoffsets or "0 0 0"
+					x = dimensions[1]
+					y = dimensions[2]
+					z = dimensions[3]
+					ud.selectionvolumetype    = ud.selectionvolumetype or ud.collisionvolumetype
+				end
+				ud.selectionvolumescales  = math.ceil(x*scale) .. " " .. math.ceil(y*scale) .. " " .. math.ceil(z*scale)
+			end
+		end
+	else
+		ud.customparams.lua_selection_scale = scale -- Scale default colVol units in lua, where we can read their model radius.
+	end
+	
+	if VISUALIZE_SELECTION_VOLUME then
+		if ud.selectionvolumescales then
+			ud.collisionvolumeoffsets = ud.selectionvolumeoffsets
+			ud.collisionvolumescales  = ud.selectionvolumescales
+			ud.collisionvolumetype    = ud.selectionvolumetype
+		end
+	end
+	
+	--Spring.Echo("VISUALIZE_SELECTION_VOLUME", ud.name, ud.collisionvolumescales, ud.selectionvolumescales)
+end
+
+
+--------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
+-- Altered unit health mod option
+--
+
+if modOptions and modOptions.hpmult and modOptions.hpmult ~= 1 then
+    local hpMulti = modOptions.hpmult
+    for unitDefID, unitDef in pairs(UnitDefs) do
+        if unitDef.maxdamage and unitDef.unitname ~= "terraunit" then
+            unitDef.maxdamage = math.max(unitDef.maxdamage*hpMulti, 1)
+        end
+    end
+end
+
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
 -- Remove Restore
--- 
+--
 
 for name, ud in pairs(UnitDefs) do
   if tobool(ud.builder) then
@@ -764,7 +714,7 @@ end
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
 -- Set chicken cost
--- 
+--
 
 --for name, ud in pairs(UnitDefs) do
 --  if (ud.unitname:sub(1,7) == "chicken") then
@@ -776,7 +726,7 @@ end
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
 -- Category changes
--- 
+--
 for name, ud in pairs(UnitDefs) do
   if ((ud.maxvelocity or 0) > 0) then
 	ud.category = ud.category .. " MOBILE"
@@ -792,29 +742,22 @@ for name, ud in pairs(UnitDefs) do
 		ud.customparams.aimposoffset = ud.modelcenteroffset
 		ud.customparams.midposoffset = ud.modelcenteroffset
 		ud.modelcenteroffset = "0 0 0"
-    end   
+    end
 end
 
--- Set default out of combat autorepair
+-- Replace regeneration with Lua
 local autoheal_defaults = VFS.Include("gamedata/unitdef_defaults/autoheal_defs.lua")
 for name, ud in pairs(UnitDefs) do
-	if not ud.autoheal then
-		ud.autoheal = autoheal_defaults.autoheal
+	if (ud.autoheal and (ud.autoheal > 0)) then
+		ud.customparams.idle_regen = ud.autoheal
+		ud.idletime = 0
+	else
+		ud.customparams.idle_regen = ud.idleautoheal or autoheal_defaults.idleautoheal
+		ud.idletime = ud.idletime or autoheal_defaults.idletime
 	end
-	if not ud.idletime then
-		ud.idletime = autoheal_defaults.idletime
-	end
-	if not ud.idleautoheal then
-		ud.idleautoheal = autoheal_defaults.idleautoheal
-	end
-end
 
--- Fix inconsistent idle regeneration for air units
-for name, ud in pairs(UnitDefs) do
-	if ud.canfly then
-		ud.customparams.idle_regen = ud.idleautoheal
-		ud.idleautoheal = 0
-	end
+	ud.idleautoheal = 0
+	ud.autoheal = 0
 end
 
 -- Set defaults for area cloak
@@ -852,30 +795,23 @@ for name, ud in pairs (UnitDefs) do
 	end
 end
 
--- Disable porc/air/specific units modoptions (see lockunits_modoption.lua)
 
---[[
-local disabledunitsstring = modOptions and modOptions.disabledunits or ""
-local disabledunits = { }
-local defenceunits = {"corrl", "corllt", "armdeva", "armartic", "armpb", "corhlt", "corrazor", "missiletower", "corflak", "armcir", "screamer", "corgrav", "turrettorp", "cordoom", "armanni", "corjamt" }
+--------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
+--
+-- Remove engine transport limits
+--
 
---Different lock modoptions are compatible
-if modOptions and tobool(modOptions.noair) then
-  disabledunits[1]="factoryplane"
-  disabledunits[2]="factorygunship"
+if Utilities.IsCurrentVersionNewerThan(104, 600) then
+	for name, ud in pairs (UnitDefs) do
+		ud.transportmass = nil
+		if ud.buildcostmetal and tonumber(ud.buildcostmetal) > TRANSPORT_LIGHT_COST_MAX then
+			ud.customparams.requireheavytrans = 1
+		end
+	end
 end
 
-if modOptions and tobool(modOptions.nodef) then
-  for i in pairs(defenceunits) do
-    table.insert(disabledunits,defenceunits[i])
-  end
+local ai_start_units = VFS.Include("LuaRules/Configs/ai_commanders.lua")
+for i = 1, #ai_start_units do
+	UnitDefs[ai_start_units[i]].customparams.ai_start_unit = true
 end
-
-if disabledunitsstring ~= "" then
-  for i in string.gmatch(disabledunitsstring, '([^+]+)') do
-    disabledunits[#disabledunits+1] = i
-  end
-end
-
-disableunits(disabledunits)
-]]

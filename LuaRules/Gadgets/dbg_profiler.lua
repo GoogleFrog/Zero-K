@@ -185,7 +185,7 @@ end
 if (gadgetHandler:IsSyncedCode()) then
 
   function gadget:Initialize()
-    gadgetHandler.actionHandler.AddChatAction(gadget, 'profile', StartHook,
+    gadgetHandler.actionHandler.AddChatAction(gadget, 'sprofile', StartHook,
       " : starts the gadget profiler (for debugging issues)"
     )
     --StartHook()
@@ -310,7 +310,7 @@ else
     gadgetHandler.actionHandler.AddSyncAction(gadget, "prf_finished",SyncedCallinFinished) 
 
     gadgetHandler.actionHandler.AddChatAction(gadget, 'uprofile', Start, " : starts the gadget profiler (for debugging issues)")
-    gadgetHandler.actionHandler.AddChatAction(gadget, 'profile', StartSYNCED,"")
+    gadgetHandler.actionHandler.AddChatAction(gadget, 'sprofile', StartSYNCED,"")
 	gadgetHandler.actionHandler.AddChatAction(gadget, 'ap', StartBoth,"")
 	gadgetHandler.actionHandler.AddChatAction(gadget, 'fprofile', FilterLowValueToggle," : filter out low values")
 	gadgetHandler.actionHandler.AddChatAction(gadget, 'profilegadget', ToggleTargetGadget," : profilegadget <gadget_name> <how_much_second_to_profile>.")
@@ -456,10 +456,10 @@ end
     end
 
     local vsx, vsy = gl.GetViewSizes()
-    local x,y = vsx-1000, vsy-60
-	local sX = vsx-600
+    local x,y = 400, vsy-60
+	local sX = 80
 	local fSize = 8
-	local fSpacing = 10
+	local fSpacing = 8
 
     local maximum_ = (maximumSYNCED > maximum) and (maximumSYNCED) or (maximum)
 

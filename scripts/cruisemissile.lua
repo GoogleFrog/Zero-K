@@ -1,10 +1,14 @@
 include "constants.lua"
 
 local base = piece 'base' 
+local launched = false
 
 function script.AimWeapon1(heading, pitch) return true end
 
 local function RemoveMissile()
+	GG.MissileSilo.DestroyMissile(unitID, unitDefID)
+	Spring.SetUnitRulesParam(unitID, "do_not_save", 1)
+	
 	Spring.SetUnitNoSelect(unitID, true)
 	Spring.SetUnitNoDraw(unitID, true)
 	Spring.SetUnitNoMinimap(unitID, true)
@@ -12,6 +16,7 @@ local function RemoveMissile()
 	Spring.SetUnitCloak(unitID, 4)
 	Spring.SetUnitStealth(unitID, true)	
 	Spring.SetUnitBlocking(unitID,false,false,false)
+	launched = true
 	Sleep(2000)
 
 	-- keep alive for stats
@@ -20,7 +25,7 @@ local function RemoveMissile()
 	-- instead of immediately. This is to give some command feedback (that the 
 	-- command actually was placed) and to show allies where the launch occurred.
 	Spring.GiveOrderToUnit(unitID, CMD.STOP, {}, 0)
-	GG.DestroyMissile(unitID, unitDefID)
+	
 	Sleep(15000)
 	Spring.DestroyUnit(unitID, false, true)
 end
@@ -42,7 +47,13 @@ function script.Create()
 	Move(base, y_axis, 40)
 end
 
+function script.HitByWeapon(x, z, weaponDefID, damage)
+	if launched then
+		return 0
+	end
+end
+
 function script.Killed(recentDamage, maxHealth)
-	Explode(base, sfxNone)
+	Explode(base, SFX.NONE)
 	return 1
 end

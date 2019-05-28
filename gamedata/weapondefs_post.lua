@@ -12,7 +12,15 @@
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
 
-local reverseCompat = not((Game and true) or false) -- Game is nil in 91.0
+Spring.Echo("Loading WeaponDefs_posts")
+
+--------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
+--
+--  Dynamic Comms
+--
+
+VFS.Include('gamedata/modularcomms/weapondefgen.lua')
 
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
@@ -95,24 +103,32 @@ end
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
 --
--- 91.0 compatibility
+-- customParams is never nil
 
-if reverseCompat then
-	for _, weaponDef in pairs(WeaponDefs) do
-		if (weaponDef.weapontype == "Shield") then
-			weaponDef.isshield = true
-		end
+for _, weaponDef in pairs(WeaponDefs) do
+	weaponDef.customparams = weaponDef.customparams or {}
+end
+
+--------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
+--
+-- Apply remaim_time
+
+for name, weaponDef in pairs(WeaponDefs) do
+	if not (weaponDef.customparams.reaim_time or string.find(name, "chicken")) then
+		weaponDef.customparams.reaim_time = 1
 	end
 end
 
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
 --
--- Remove special stuff for empirical DPS purposes
+-- Set shield starting power to 100%
 
-for _, weaponDef in pairs(WeaponDefs) do
-	if weaponDef.impactonly then
-		weaponDef.edgeeffectiveness = 1
+for name, weaponDef in pairs(WeaponDefs) do
+	if weaponDef.shieldpower and (weaponDef.shieldpower < 2000) then
+		weaponDef.shieldstartingpower = weaponDef.shieldpower
+		weaponDef.customparams.shieldstartingpower = weaponDef.shieldstartingpower
 	end
 end
 
@@ -133,32 +149,21 @@ end
 -- Preserve crater sizes for new engine
 -- https://github.com/spring/spring/commit/77c8378b04907417a62c25218d69ff323ba74c8d
 
-if not reverseCompat then
-	for _, weaponDef in pairs(WeaponDefs) do
-		if (not weaponDef.craterareaofeffect) then
-			weaponDef.craterareaofeffect = tonumber(weaponDef.areaofeffect or 0) * 1.5
-		end
+for _, weaponDef in pairs(WeaponDefs) do
+	if (not weaponDef.craterareaofeffect) then
+		weaponDef.craterareaofeffect = tonumber(weaponDef.areaofeffect or 0) * 1.5
 	end
+end
+
+-- New engine seems to have covertly increased the effect of cratermult
+for _, weaponDef in pairs(WeaponDefs) do
+	weaponDef.cratermult = (weaponDef.cratermult or 1) * 0.3
 end
 
 -- https://github.com/spring/spring/commit/dd7d1f79c3a9b579f874c210eb4c2a8ae7b72a16
 for _, weaponDef in pairs(WeaponDefs) do
 	if ((weaponDef.weapontype == "LightningCannon") and (not weaponDef.beamttl)) then
 		weaponDef.beamttl = 10
-	end
-end
-
---------------------------------------------------------------------------------
---------------------------------------------------------------------------------
---
--- Workaround impact only beam vs shield bug 
--- https://github.com/ZeroK-RTS/Zero-K/issues/663
-
-for _, weaponDef in pairs(WeaponDefs) do
-	if ((weaponDef.weapontype == "LightningCannon") or (weaponDef.weapontype == "BeamLaser")) and weaponDef.impactonly then
-		weaponDef.impactonly = false
-		weaponDef.areaofeffect = 2
-		weaponDef.craterareaofeffect = 3
 	end
 end
 
@@ -214,6 +219,17 @@ end
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
 --
+-- Set myGravity for Cannons because maps cannot be trusted. Standard is 120, 
+-- gravity of 150 can cause high things (such as HLT) to be unhittable.
+
+ for _, weaponDef in pairs(WeaponDefs) do
+	if weaponDef.weapontype == "Cannon" and not weaponDef.mygravity then
+		weaponDef.mygravity = 2/15 -- 120/(GAME_SPEED^2)
+	end
+end
+--------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
+--
 -- because the way lua access to unitdefs and weapondefs is setup is insane
 --
  for _, weaponDef in pairs(WeaponDefs) do
@@ -240,6 +256,12 @@ end
 	end
  end
 
+ for _, weaponDef in pairs(WeaponDefs) do
+	local name = weaponDef.name
+	if name:find('fake') or name:find('Fake') or name:find('Bogus') or name:find('NoWeapon') then
+		weaponDef.customparams.fake_weapon = 1
+	end
+ end
 -- Set defaults for napalm (area damage)
 local area_damage_defaults = VFS.Include("gamedata/unitdef_defaults/area_damage_defs.lua")
 for name, wd in pairs (WeaponDefs) do
@@ -286,6 +308,34 @@ end
 	end
  end
  
+ --------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
+--
+-- Take over the handling of shield energy drain from the engine.
+
+for _, weaponDef in pairs(WeaponDefs) do
+	if weaponDef.shieldpowerregenenergy and weaponDef.shieldpowerregenenergy > 0 then
+		weaponDef.customparams = weaponDef.customparams or {}
+		
+		weaponDef.customparams.shield_rate = weaponDef.shieldpowerregen
+		weaponDef.customparams.shield_drain = weaponDef.shieldpowerregenenergy
+		
+		weaponDef.shieldpowerregen = 0
+		weaponDef.shieldpowerregenenergy = 0
+	end
+end
+
+--------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
+--
+-- Set hardStop for defered lighting and to reduce projectile count
+
+ for _, weaponDef in pairs(WeaponDefs) do
+	if weaponDef.weapontype == "LaserCannon" and weaponDef.hardstop == nil then
+		weaponDef.hardstop = true
+	end
+end
+
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
 --
@@ -296,7 +346,18 @@ for _, weaponDef in pairs(WeaponDefs) do
 		weaponDef.edgeeffectiveness = 1
 	end
 end
- 
+
+--------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
+--
+-- ???
+
+for _, weaponDef in pairs(WeaponDefs) do
+	if weaponDef.paralyzetime and not weaponDef.paralyzer then
+		weaponDef.customparams.extra_paratime = weaponDef.paralyzetime
+	end
+end
+
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
 --
@@ -304,58 +365,43 @@ end
 --
 
 do
-  local processed = {}
+	local function RawCanAttack (ud)
+		if (ud.weapons) then
+			for i, weapon in pairs(ud.weapons) do
+				local wd = WeaponDefs[weapon.name:lower()]
+				if wd.weapontype ~= "Shield" and not wd.interceptor then
+					return true
+				end
+			end
+		end
+		if (ud.kamikaze) then
+			return not ud.yardmap
+		end
+		return false
+	end
 
-  local RawCanAttack
-  local FacCanAttack
-  local CanAttack
+	local function CanAttack (ud)
+		local isFac = ud.yardmap and ud.buildoptions
+		if isFac or RawCanAttack(ud) then
+			return true
+		end
+		return false
+	end
 
-  RawCanAttack = function(ud)
-    if (ud.weapons) then
-      for i, weapon in pairs(ud.weapons) do
-		--Spring.Echo(ud.name)
-        local wd = WeaponDefs[weapon.name:lower()]
-        if ((not (wd.weapontype == "Shield")) and 
-            (not wd.interceptor)) then
-          return true
-        end
-      end
-    end
-    if (ud.kamikaze) then
-      return not ud.yardmap
-    end
-    return false
-  end
+	for name, ud in pairs(UnitDefs) do
+		if not ud.canattack then
+			ud.canattack = CanAttack(ud)
+		end
+	end
+end
 
-  FacCanAttack = function(ud)
-    for _, name in pairs(ud.buildoptions) do
-      if (CanAttack(UnitDefs[name:lower()])) then
-        return true
-      end
-    end
-    return false
-  end
-
-  CanAttack = function(ud)
-    if (processed[ud] ~= nil) then
-      return processed[ud]
-    end
-    local canAttack = false
-    if (RawCanAttack(ud)) then
-      canAttack = true
-    elseif (ud.unitname:find("factory") or (ud.unitname == "missilesilo")) then
-      if (FacCanAttack(ud)) then
-        canAttack = true
-      end
-    end
-    processed[ud] = canAttack
-    return canAttack
-  end
-
-  -- loop through the unit defs
-  for name, ud in pairs(UnitDefs) do
-    ud.canattack = CanAttack(ud)
-  end
+for _, wd in pairs (WeaponDefs) do
+	if wd.reloadtime then -- shields and death explosions don't have reloadtime
+		wd.reloadtime = (math.floor(wd.reloadtime * 30 + 1E-5) / 30) + 1E-6 -- sanitize to whole frames (plus leeways because float arithmetic is bonkers)
+	end
+	if not wd.predictboost then
+		wd.predictboost = 1
+	end
 end
 
 --------------------------------------------------------------------------------

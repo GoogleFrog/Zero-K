@@ -4,6 +4,7 @@
 local mapWidth = Game.mapSizeX
 local mapHeight = Game.mapSizeZ
 local spGiveOrderToUnit = Spring.GiveOrderToUnit
+local spGetGroundHeight = Spring.GetGroundHeight
 local CMD_INSERT = CMD.INSERT
 
 function Spring.Utilities.IsValidPosition(x, z)
@@ -28,6 +29,7 @@ function Spring.Utilities.ClampPosition(x, z)
 			return x, z
 		end
 	end
+	return 0, 0
 end
 
 function Spring.Utilities.GiveClampedOrderToUnit(unitID, cmdID, params, options, doNotGiveOffMap)
@@ -37,9 +39,16 @@ function Spring.Utilities.GiveClampedOrderToUnit(unitID, cmdID, params, options,
 	if cmdID == CMD_INSERT then
 		local x, z = Spring.Utilities.ClampPosition(params[4], params[6])
 		spGiveOrderToUnit(unitID, cmdID, {params[1], params[2], params[3], x, params[5], z}, options)
-		return true
+		return x, params[5], z 
 	end
 	local x, z = Spring.Utilities.ClampPosition(params[1], params[3])
 	spGiveOrderToUnit(unitID, cmdID, {x, params[2], z}, options)
+	return x, params[2], z
+end
+
+function Spring.Utilities.GiveClampedMoveGoalToUnit(unitID, x, z, speed, raw)
+	x, z = Spring.Utilities.ClampPosition(x, z)
+	local y = spGetGroundHeight(x,z)
+	Spring.SetUnitMoveGoal(unitID, x, y, z, 16, speed, raw) -- The last argument is whether the goal is raw
 	return true
 end

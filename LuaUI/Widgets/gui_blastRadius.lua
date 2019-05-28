@@ -81,10 +81,10 @@ local floor                 = math.floor
 
 -----------------------------------------------------------------------------------
 local alwaysDisplay = {
-	[UnitDefNames.armfus.id] = true,
-	[UnitDefNames.cafus.id] = true,
-	[UnitDefNames.armnanotc.id] = true,
-	[UnitDefNames.corsilo.id] = true,
+	[UnitDefNames.energyfusion.id] = true,
+	[UnitDefNames.energysingu.id] = true,
+	[UnitDefNames.staticcon.id] = true,
+	[UnitDefNames.staticnuke.id] = true,
 }
 
 -----------------------------------------------------------------------------------
@@ -175,9 +175,6 @@ function DrawBuildMenuBlastRange()
 	--check if build command
 	local cmdDesc = spGetActiveCmdDesc( idx )
 	
-	--local units = spGetSelectedUnits()
-	--local cmdQ = Spring.GetCommandQueue( units[1] )
-	
 	if ( cmdDesc["type"] ~= 20 ) then
 		--quit here if not a build command
 		return
@@ -192,7 +189,7 @@ function DrawBuildMenuBlastRange()
 	
 	local deathBlasId = weapNamTab[lower(udef["deathExplosion"])].id
 	local blastRadius = weapTab[deathBlasId].damageAreaOfEffect
-	local defaultDamage = weapTab[deathBlasId].damages[0]	--get default damage
+	local defaultDamage = weapTab[deathBlasId].customParams.shield_damage	--get default damage
 		
 	local mx, my = spGetMouseState()
 	local _, coords = spTraceScreenRay(mx, my, true, true)
@@ -263,8 +260,8 @@ function DrawUnitBlastRadius( unitID )
 		blastRadius = weapTab[blastId].damageAreaOfEffect
 		deathblastRadius = weapTab[deathBlasId].damageAreaOfEffect
 						
-		blastDamage = weapTab[blastId].damages[0]
-		deathblastDamage = weapTab[deathBlasId].damages[0]
+		blastDamage = weapTab[blastId].customParams.shield_damage
+		deathblastDamage = weapTab[deathBlasId].customParams.shield_damage
 					
 		local height = Spring.GetGroundHeight(x,z)
 		local halfSquare = deathblastRadius*0.5
@@ -333,7 +330,7 @@ end
 --[[
 function CheckSpecState()
 	local playerID = spGetMyPlayerID()
-	local _, _, spec, _, _, _, _, _ = spGetPlayerInfo(playerID)
+	local _, _, spec = spGetPlayerInfo(playerID, false)
 		
 	if ( spec == true ) then
 		spEcho("<Blast Radius> Spectator mode. Widget removed.")

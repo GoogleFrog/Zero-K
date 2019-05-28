@@ -12,10 +12,11 @@ local weaponDef = {
 	customParams            = {
 		muzzleEffectShot = [[custom:ataalaser]],
 		slot = [[3]],
+		manualfire = 1,
 	},
 
 	damage                  = {
-		default    = 1400,
+		default    = 2000,
 	},
 
 	explosionGenerator      = [[custom:DGUNTRACE]],
@@ -25,13 +26,13 @@ local weaponDef = {
 	noExplode               = true,
 	noSelfDamage            = true,
 	range                   = 200,
-	reloadtime              = 20,
+	reloadtime              = 30,
 	size                    = 6,
 	soundHit                = [[explosion/ex_med6]],
 	soundStart              = [[weapon/laser/heavy_laser4]],
 	soundTrigger            = true,
-	tolerance               = 10000,
 	turret                  = true,
+	waterWeapon             = true,
 	weaponType              = [[DGun]],
 	weaponVelocity          = 300,
 }

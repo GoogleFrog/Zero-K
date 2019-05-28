@@ -62,6 +62,7 @@ options = {
 		desc = 'Draws state icons when zoomed out.',
 		type = 'bool',
 		value = true,
+		noHotkey = true,
 		OnChange = function(self)
 			forRadarIcons = self.value
 		end
@@ -93,6 +94,7 @@ local textureColors = {}
 local hideIcons = {}
 local pulseIcons = {}
 
+local updateTime, iconFade = 0, 0
 
 WG.icons = {}
 
@@ -170,7 +172,7 @@ function WG.icons.SetPulse( iconName, pulse )
 end
 
 
-function WG.icons.SetUnitIcon( unitID, data )
+function WG.icons.SetUnitIcon(unitID, data)
 	local iconName = data.name
 	local texture = data.texture
 	local color = data.color
@@ -209,8 +211,6 @@ function WG.icons.SetUnitIcon( unitID, data )
 		textureData[texture][iconName] = {}
 	end
 	textureData[texture][iconName][unitID] = 0
-	
-		
 
 	if color then
 		if not textureColors[unitID] then
@@ -229,13 +229,12 @@ function WG.icons.SetUnitIcon( unitID, data )
 		if (ud == nil) then
 			unitHeights[unitID] = nil
 		else
-			--unitHeights[unitID] = ud.height + iconoffset
+			--unitHeights[unitID] = Spring.Utilities.GetUnitHeight(ud) + iconoffset
 			unitHeights[unitID] = Spring.GetUnitHeight(unitID) + iconoffset
 		end
 	end
 
 	OrderIconsOnUnit(unitID)
-	
 end
 
 -------------------------------------------------------------------------------------
@@ -275,7 +274,6 @@ local function DrawWorldFunc()
 	
 	local gameFrame = spGetGameFrame()
 	
-	local fade = min( abs((gameFrame % 60) - 20) / 20, 1 )
 	
 	gl.Color(1,1,1,1)
 	glDepthMask(true)
@@ -295,7 +293,7 @@ local function DrawWorldFunc()
 			if textureColor then
 				gl.Color( textureColor )
 			elseif pulseIcons[iconName] then
-				gl.Color( 1,1,1,fade )
+				gl.Color( 1,1,1,iconFade )
 			end
 			
 			local unitInView = spIsUnitInView(unitID)
@@ -332,6 +330,10 @@ function widget:DrawWorldRefraction()
 	DrawWorldFunc()
 end
 
+function widget:Update(dt)
+	updateTime = (updateTime + dt)%2
+	iconFade = min(abs(((updateTime*30) % 60) - 20) / 20, 1 )
+end
 
 -- drawscreen method
 -- the problem with this one is it draws at same size regardless of how far away the unit is

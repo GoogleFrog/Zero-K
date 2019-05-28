@@ -2,10 +2,9 @@ unitDef = {
   unitname            = [[chicken_pigeon]],
   name                = [[Pigeon]],
   description         = [[Flying Spore Scout]],
+  activateWhenBuilt   = true,
   acceleration        = 0.8,
-  amphibious          = true,
-  bankscale           = [[1]],
-  brakeRate           = 0.4,
+  brakeRate           = 0.32,
   buildCostEnergy     = 0,
   buildCostMetal      = 0,
   builder             = false,
@@ -16,20 +15,12 @@ unitDef = {
   canLand             = true,
   canMove             = true,
   canPatrol           = true,
-  canstop             = true,
   canSubmerge         = false,
   category            = [[FIXEDWING]],
   collide             = false,
   cruiseAlt           = 200,
 
   customParams        = {
-    description_fr = [[Scout volant]],
-	description_de = [[Fliegender Spore Scout]],
-	description_pl = [[Latajacy zwiadowca]],
-    helptext       = [[A small flying chicken scout with spore.]],
-    helptext_fr    = [[Le Pigeon est une unit? a?rienne l?g?re mais dot?e d'une attaque ? mi chemin entre la bombe et le missile guid? provoquant des dommages non n?gligeables.]],
-	helptext_de    = [[Ein kleiner, fliegender Chickenaufklärer mit Sporen.]],
-	helptext_pl    = [[Maly latajacy kurczak zwiadowczy, ktory moze wypuszczac zarodniki.]],
   },
 
   explodeAs           = [[NOWEAPON]],
@@ -39,18 +30,14 @@ unitDef = {
   iconType            = [[scoutplane]],
   idleAutoHeal        = 20,
   idleTime            = 300,
-  mass                = 69,
   maxDamage           = 150,
   maxSlope            = 18,
   maxVelocity         = 10,
-  moverate1           = [[32]],
   noAutoFire          = false,
-  noChaseCategory     = [[TERRAFORM FIXEDWING SATELLITE SUB STUPIDTARGET]],
+  noChaseCategory     = [[TERRAFORM FIXEDWING SATELLITE STUPIDTARGET]],
   objectName          = [[chicken_pigeon.s3o]],
   power               = 50,
-  seismicSignature    = 0,
   selfDestructAs      = [[NOWEAPON]],
-  separation          = [[0.2]],
 
   sfxtypes            = {
 
@@ -61,10 +48,8 @@ unitDef = {
     },
 
   },
-
-  side                = [[THUNDERBIRDS]],
   sightDistance       = 512,
-  smoothAnim          = true,
+  sonarDistance       = 512,
   turnRate            = 6000,
   workerTime          = 0,
 
@@ -102,19 +87,16 @@ unitDef = {
         default = 0,
       },
 
-      dropped                 = true,
       edgeEffectiveness       = 0,
       explosionGenerator      = [[custom:NONE]],
       impulseBoost            = 0,
       impulseFactor           = 0,
       interceptedByShieldType = 1,
-      manualBombSettings      = true,
       model                   = [[]],
       myGravity               = 1000,
       noSelfDamage            = true,
       range                   = 10,
       reloadtime              = 2,
-      scale                   = [[0]],
       weaponType              = [[AircraftBomb]],
     },
 
@@ -126,14 +108,16 @@ unitDef = {
       collideFriendly         = false,
       craterBoost             = 0,
       craterMult              = 0,
-
+      
+      customParams            = {
+        light_radius = 0,
+      },
+      
       damage                  = {
         default = 75,
-        subs    = 3.75,
       },
 
       dance                   = 60,
-      dropped                 = 1,
       explosionGenerator      = [[custom:NONE]],
       fireStarter             = 0,
       fixedlauncher           = 1,
@@ -147,9 +131,7 @@ unitDef = {
       model                   = [[chickeneggpink.s3o]],
       range                   = 600,
       reloadtime              = 4,
-      smokedelay              = [[0.1]],
       smokeTrail              = true,
-      startsmoke              = [[1]],
       startVelocity           = 100,
       texture1                = [[]],
       texture2                = [[sporetrail]],
@@ -157,7 +139,7 @@ unitDef = {
       tracks                  = true,
       turnRate                = 24000,
       turret                  = true,
-      waterweapon             = false,
+      waterWeapon             = true,
       weaponAcceleration      = 100,
       weaponType              = [[MissileLauncher]],
       weaponVelocity          = 500,

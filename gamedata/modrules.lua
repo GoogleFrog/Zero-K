@@ -47,7 +47,7 @@ local modrules  = {
 
 
   resurrect = {
-    energyCostFactor = 1.25,  -- defaults to 0.5
+    energyCostFactor = 2,  -- defaults to 0.5
   },
 
 
@@ -63,12 +63,14 @@ local modrules  = {
 
   sensors = {
     requireSonarUnderWater = true,  -- defaults to true
+    alwaysVisibleOverridesCloaked = true, -- default false
     
     los = {
-      losMipLevel = 3,  -- defaults to 1
+	  -- Don't bother changing these values.
+	  -- In a test, both mip levels from 2 -> 4 changed the usage from around 1% to 0.6%.
+      losMipLevel = 2,  -- defaults to 1
       losMul      = 1,  -- defaults to 1
-      airMipLevel = 4,  -- defaults to 2
-      airMul      = 1,  -- defaults to 1
+      airMipLevel = 2,  -- defaults to 2
     },
   },
 
@@ -93,7 +95,7 @@ local modrules  = {
 
 
   experience = {
-    experienceMult = 1.0; -- defaults to 1.0
+    experienceMult = 0; -- defaults to 1.0
 
     -- these are all used in the following form:
     --   value = defValue * (1 + (scale * (exp / (exp + 1))))
@@ -122,8 +124,10 @@ local modrules  = {
   },
   
   system = {
-    pathFinderSystem = (Spring.GetModOptions() and (Spring.GetModOptions().pathfinder == "qtpfs") and 1) or 0,
+    pathFinderSystem = 0, --(Spring.GetModOptions() and (Spring.GetModOptions().pathfinder == "qtpfs") and 1) or 0, -- QTPFS causes desync https://springrts.com/mantis/view.php?id=5936
 	pathFinderUpdateRate = 0.0000001,
+	pathFinderRawDistMult = 1.25,
+	allowTake = false,
   },
 }
 --------------------------------------------------------------------------------

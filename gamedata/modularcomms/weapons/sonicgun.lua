@@ -18,10 +18,9 @@ local weaponDef = {
 
 	damage                  = {
 		default = 175,
-		planes  = 175,
 		subs    = 175,
 	},
-	
+
 	cegTag			= [[sonictrail]],
 	explosionGenerator	= [[custom:sonic]],
 	edgeEffectiveness       = 0.75,
@@ -29,7 +28,6 @@ local weaponDef = {
 	impulseBoost            = 60,
 	impulseFactor           = 0.5,
 	interceptedByShieldType = 1,
-	lineOfSight             = true,
 	noSelfDamage            = true,
 	range                   = 320,
 	reloadtime              = 1.1,

@@ -1,22 +1,27 @@
-function gadget:GetInfo() return {
-		name    = "Jumpjets",
-		desc    = "Gives units the jump ability",
-		author  = "quantum",
-		date    = "May 14, 2008", --last update 2015-05-05
-		license = "GNU GPL, v2 or later",
-		layer   = 0,
-		enabled = not (Spring.GetModOptions().impulsejump  == "1"), -- loaded by default?
-} end
+function gadget:GetInfo() 
+	return {
+			name    = "Jumpjets",
+			desc    = "Gives units the jump ability",
+			author  = "quantum",
+			date    = "May 14, 2008", --last update 2015-05-05
+			license = "GNU GPL, v2 or later",
+			layer   = 0,
+			enabled = true,
+	}
+end
 
 if (not gadgetHandler:IsSyncedCode()) then return end
 
 include("LuaRules/Configs/customcmds.h.lua")
 -- needed for checks
 
+local SAVE_FILE  = "Gadgets/unit_jumpjets.lua"
+local PLAY_SOUND = false
+
 local Spring    = Spring
 local MoveCtrl  = Spring.MoveCtrl
 local coroutine = coroutine
-local Sleep	    = coroutine.yield
+local Sleep     = coroutine.yield
 local pairs     = pairs
 local assert    = assert
 
@@ -24,41 +29,43 @@ local pi2    = math.pi*2
 local random = math.random
 local abs    = math.abs
 
-local CMD_STOP = CMD.STOP
-local CMD_WAIT = CMD.WAIT
+local CMD_STOP   = CMD.STOP
+local CMD_WAIT   = CMD.WAIT
+local CMD_MOVE   = CMD.MOVE
+local CMD_REMOVE = CMD.REMOVE
+local privateTable = {private = true}
 
 local spGetHeadingFromVector = Spring.GetHeadingFromVector
-local spGetUnitPosition  = Spring.GetUnitPosition
-local spInsertUnitCmdDesc  = Spring.InsertUnitCmdDesc
-local spSetUnitRulesParam  = Spring.SetUnitRulesParam
-local spGetUnitRulesParam  = Spring.GetUnitRulesParam
-local spSetUnitNoMinimap   = Spring.SetUnitNoMinimap
-local spGetUnitIsStunned   = Spring.GetUnitIsStunned
-local spGetCommandQueue    = Spring.GetCommandQueue
-local spGiveOrderToUnit    = Spring.GiveOrderToUnit
-local spSetUnitVelocity    = Spring.SetUnitVelocity
-local spSetUnitNoSelect    = Spring.SetUnitNoSelect
-local spSetUnitBlocking    = Spring.SetUnitBlocking
-local spSetUnitMoveGoal    = Spring.SetUnitMoveGoal
-local spGetGroundHeight    = Spring.GetGroundHeight
-local spGetGroundNormal    = Spring.GetGroundNormal
-local spTestMoveOrder      = Spring.TestMoveOrder
-local spTestBuildOrder     = Spring.TestBuildOrder
-local spGetGameSeconds     = Spring.GetGameSeconds
-local spGetUnitHeading     = Spring.GetUnitHeading
-local spSetUnitNoDraw      = Spring.SetUnitNoDraw
-local spSetUnitNoDraw      = Spring.SetUnitNoDraw
-local spGetGameFrame       = Spring.GetGameFrame
-local spGetUnitDefID       = Spring.GetUnitDefID
-local spGetUnitTeam        = Spring.GetUnitTeam
-local spDestroyUnit        = Spring.DestroyUnit
-local spCreateUnit         = Spring.CreateUnit
+local spGetUnitPosition      = Spring.GetUnitPosition
+local spInsertUnitCmdDesc    = Spring.InsertUnitCmdDesc
+local spSetUnitRulesParam    = Spring.SetUnitRulesParam
+local spGetUnitRulesParam    = Spring.GetUnitRulesParam
+local spSetUnitNoMinimap     = Spring.SetUnitNoMinimap
+local spGetUnitIsStunned     = Spring.GetUnitIsStunned
+local spGetCommandQueue      = Spring.GetCommandQueue
+local spGiveOrderToUnit      = Spring.GiveOrderToUnit
+local spSetUnitVelocity      = Spring.SetUnitVelocity
+local spSetUnitNoSelect      = Spring.SetUnitNoSelect
+local spSetUnitBlocking      = Spring.SetUnitBlocking
+local spSetUnitMoveGoal      = Spring.SetUnitMoveGoal
+local spGetGroundHeight      = Spring.GetGroundHeight
+local spGetGroundNormal      = Spring.GetGroundNormal
+local spTestMoveOrder        = Spring.TestMoveOrder
+local spTestBuildOrder       = Spring.TestBuildOrder
+local spGetGameSeconds       = Spring.GetGameSeconds
+local spGetUnitHeading       = Spring.GetUnitHeading
+local spSetUnitNoDraw        = Spring.SetUnitNoDraw
+local spGetGameFrame         = Spring.GetGameFrame
+local spGetUnitDefID         = Spring.GetUnitDefID
+local spGetUnitTeam          = Spring.GetUnitTeam
+local spDestroyUnit          = Spring.DestroyUnit
+local spCreateUnit           = Spring.CreateUnit
 
-local mcSetRotationVelocity = MoveCtrl.SetRotationVelocity
-local mcSetPosition	        = MoveCtrl.SetPosition
-local mcSetRotation         = MoveCtrl.SetRotation
-local mcDisable	            = MoveCtrl.Disable
-local mcEnable	            = MoveCtrl.Enable
+local mcSetRotationVelocity  = MoveCtrl.SetRotationVelocity
+local mcSetPosition          = MoveCtrl.SetPosition
+local mcSetRotation          = MoveCtrl.SetRotation
+local mcDisable              = MoveCtrl.Disable
+local mcEnable               = MoveCtrl.Enable
 
 local SetLeaveTracks = Spring.SetUnitLeaveTracks -- or MoveCtrl.SetLeaveTracks --0.82 compatiblity
 
@@ -71,31 +78,34 @@ local jumps = {}
 local jumping = {}
 local goalSet = {}
 
-local quiteNew = Spring.Utilities.IsCurrentVersionNewerThan(95, 0)
-
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
 
 local jumpDefs = VFS.Include ("LuaRules/Configs/jump_defs.lua")
 
 local jumpCmdDesc = {
-	id			= CMD_JUMP,
-	type		= CMDTYPE.ICON_MAP,
-	name		= 'Jump',
-	cursor	= 'Jump',	-- add with LuaUI?
-	action	= 'jump',
+	id      = CMD_JUMP,
+	type    = CMDTYPE.ICON_MAP,
+	name    = 'Jump',
+	cursor  = 'Jump', -- add with LuaUI? No.
+	action  = 'jump',
 	tooltip = 'Jump to selected position.',
 }
+
+local blockingStructure = {}
+for udid = 1, #UnitDefs do
+	local ud = UnitDefs[udid]
+	if ud.isImmobile and not ud.customParams.mobilebuilding then
+		blockingStructure[udid] = true
+	end
+end
 
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
 
 local function spTestMoveOrderX(unitDefID, x, y, z)
-	if quiteNew then
-		return spTestMoveOrder(unitDefID, x, y, z, 0, 0, 0, true, true, true)
-	else
-		return spTestBuildOrder(unitDefID, x, y, z, 1)
-	end
+	-- Note that spTestMoveOrder returns true for jumping underwater.
+	return spTestMoveOrder(unitDefID, x, y, z, 0, 0, 0, true, true, true)
 end
 
 
@@ -114,8 +124,7 @@ local function GetLandStructureCheckValues(x, z, myRadius)
 	for i = 1, #units do
 		local unitID = units[i]
 		local unitDefID = spGetUnitDefID(unitID)
-		-- Only check immobile units
-		if UnitDefs[unitDefID] and UnitDefs[unitDefID].isImmobile then
+		if blockingStructure[unitDefID] then
 			local radius = spGetUnitRadius(unitID)
 			local sx, sy, sz = spGetUnitPosition(unitID)
 			
@@ -191,7 +200,6 @@ local function GetDist3(a, b)
 	return (x*x + y*y + z*z)^0.5
 end
 
-
 local function Approach(unitID, cmdParams, range)
 	spSetUnitMoveGoal(unitID, cmdParams[1],cmdParams[2],cmdParams[3], range)
 end
@@ -201,79 +209,93 @@ local function StartScript(fn)
 	coroutines[#coroutines + 1] = co
 end
 
-local function Jump(unitID, goal, cmdTag, origCmdParams)
+local function Jump(unitID, goal, origCmdParams, mustJump)
 	goal[2]                = spGetGroundHeight(goal[1],goal[3])
 	local start            = {spGetUnitPosition(unitID)}
 
+	local startHeight      = spGetGroundHeight(start[1],start[3])
+	start[2] = math.max(start[2], startHeight)
+	
 	local fakeUnitID
-	local unitDefID	       = spGetUnitDefID(unitID)
+	local unitDefID        = spGetUnitDefID(unitID)
 	local jumpDef          = jumpDefs[unitDefID]
-	local speed	           = jumpDef.speed
-	local delay	           = jumpDef.delay
+	local defSpeed         = jumpDef.speed
+	local delay            = jumpDef.delay
 	local height           = jumpDef.height
 	local cannotJumpMidair = jumpDef.cannotJumpMidair
 	local reloadTime       = (jumpDef.reload or 0)*30
 	local teamID           = spGetUnitTeam(unitID)
 	
-	if cannotJumpMidair and abs(spGetGroundHeight(start[1],start[3]) - start[2]) > 1 then
+	if (not mustJump) and ((cannotJumpMidair and abs(startHeight - start[2]) > 1) or (startHeight < -UnitDefs[unitDefID].maxWaterDepth)) then
 		return false, true
 	end
 	
-	local rotateMidAir	= jumpDef.rotateMidAir
+	local rotateMidAir = jumpDef.rotateMidAir
 	local env
 	
 	local vector = {goal[1] - start[1],
-					goal[2] - start[2],
-					goal[3] - start[3]}
+	                goal[2] - start[2],
+	                goal[3] - start[3]}
 	
 	-- vertex of the parabola
 	local vertex = {start[1] + vector[1]*0.5,
-					start[2] + vector[2]*0.5 + (1-(2*0.5-1)^2)*height,
-					start[3] + vector[3]*0.5}
+	                start[2] + vector[2]*0.5 + (1-(2*0.5-1)^2)*height,
+	                start[3] + vector[3]*0.5}
 	
 	local lineDist = GetDist3(start, goal)
 	if lineDist == 0 then lineDist = 0.00001 end
 	local flightDist = GetDist3(start, vertex) + GetDist3(vertex, goal)
 	
-	local speed = speed * lineDist/flightDist
+	local speed = defSpeed * lineDist/flightDist
 	local step = speed/lineDist
 	local duration = math.ceil(1/step)+1
-	
-	-- check if there is no wall in between
-	local x,z = start[1],start[3]
-	for i=0, 1, step do
-		x = x + vector[1]*step
-		z = z + vector[3]*step
-		if ( (spGetGroundHeight(x,z) - 30) > (start[2] + vector[2]*i + (1-(2*i-1)^2)*height)) then
-			return false, false -- FIXME: should try to use SetMoveGoal instead of jumping!
+
+	if not mustJump then
+		-- check if there is no wall in between
+		local x,z = start[1],start[3]
+		local wallStep = 0.015
+		--Spring.Echo("Gadget", x, start[2], z, "vec", vector[1], vector[2], vector[3], "step", wallStep)
+		for i = 0, 1, wallStep do
+			x = x + vector[1]*wallStep
+			z = z + vector[3]*wallStep
+			if ((spGetGroundHeight(x,z) - 30) > (start[2] + vector[2]*i + (1 - (2*i - 1)^2)*height)) then
+				return false, false -- FIXME: should try to use SetMoveGoal instead of jumping!
+			end
 		end
 	end
 
 	-- pick shortest turn direction
-	local rotUnit			 = 2^16 / (pi2)
-	local startHeading	= spGetUnitHeading(unitID) + 2^15
-	local goalHeading	 = spGetHeadingFromVector(vector[1], vector[3]) + 2^15
-	if (goalHeading	>= startHeading + 2^15) then
+	local rotUnit      = 2^16 / (pi2)
+	local startHeading = spGetUnitHeading(unitID) + 2^15
+	local goalHeading  = spGetHeadingFromVector(vector[1], vector[3]) + 2^15
+	if (goalHeading >= startHeading + 2^15) then
 		startHeading = startHeading + 2^16
-	elseif (goalHeading	< startHeading - 2^15)	then
-		goalHeading	= goalHeading	+ 2^16
+	elseif (goalHeading < startHeading - 2^15)	then
+		goalHeading = goalHeading + 2^16
 	end
 	local turn = goalHeading - startHeading
 	
 	jumping[unitID] = {vector[1]*step, vector[2]*step, vector[3]*step}
 
 	mcEnable(unitID)
-	Spring.SetUnitRulesParam(unitID, "is_jumping", 1)
 	Spring.SetUnitVelocity(unitID,0,0,0)
 	SetLeaveTracks(unitID, false)
+	
+	Spring.SetUnitRulesParam(unitID, "is_jumping", 1)
+	Spring.SetUnitRulesParam(unitID, "jump_goal_x", goal[1], privateTable)
+	Spring.SetUnitRulesParam(unitID, "jump_goal_z", goal[3], privateTable)
+	
 
 	env = Spring.UnitScript.GetScriptEnv(unitID)
 	
 	if (delay == 0) then
 		Spring.UnitScript.CallAsUnit(unitID,env.beginJump,turn,lineDist,flightDist,duration)
 		if rotateMidAir then
-			mcSetRotation(unitID, 0, (startHeading - 2^15)/rotUnit, 0) -- keep current heading
-			mcSetRotationVelocity(unitID, 0, turn/rotUnit*step, 0)
+			mcSetRotation(unitID, 0, (2^15 - startHeading)/rotUnit, 0) -- keep current heading
+			mcSetRotationVelocity(unitID, 0, -turn/rotUnit*step, 0)
+		end
+		if PLAY_SOUND and (not cannotJumpMidair) then	-- don't make sound if we jump with legs instead of jets
+			GG.PlayFogHiddenSound("Jump", UnitDefs[unitDefID].mass/10, start[1], start[2], start[3])
 		end
 	else
 		Spring.UnitScript.CallAsUnit(unitID,env.preJump,turn,lineDist,flightDist,duration)
@@ -281,19 +303,23 @@ local function Jump(unitID, goal, cmdTag, origCmdParams)
 	spSetUnitRulesParam(unitID,"jumpReload",0)
 
 	local function JumpLoop()
-
 		if delay > 0 then
-			for i=delay, 1, -1 do
+			for i = delay, 1, -1 do
 				Sleep()
 			end
-		
+			
+			if (not Spring.ValidUnitID(unitID) or Spring.GetUnitIsDead(unitID)) then 
+				return 
+			end
 			Spring.UnitScript.CallAsUnit(unitID,env.beginJump)
-
-			if rotateMidAir then
-				mcSetRotation(unitID, 0, (startHeading - 2^15)/rotUnit, 0) -- keep current heading
-				mcSetRotationVelocity(unitID, 0, turn/rotUnit*step, 0)
+			if PLAY_SOUND and (not cannotJumpMidair) then	-- don't make sound if we jump with legs instead of jets
+				GG.PlayFogHiddenSound("Jump", UnitDefs[unitDefID].mass/10, start[1], start[2], start[3])
 			end
 
+			if rotateMidAir then
+				mcSetRotation(unitID, 0, (2^15 - startHeading)/rotUnit, 0) -- keep current heading
+				mcSetRotationVelocity(unitID, 0, -turn/rotUnit*step, 0)
+			end
 		end
 	
 		--detach from transport
@@ -320,10 +346,10 @@ local function Jump(unitID, goal, cmdTag, origCmdParams)
 			mcSetPosition(unitID, x, y, z)
 			if x0 then
 				jumping[unitID] = {x - x0, y - y0, z - z0}
-				spSetUnitVelocity(unitID, x - x0, y - y0, z - z0) -- for the benefit of unit AI and possibly target prediction (probably not the latter)
+				spSetUnitVelocity(unitID, (x - x0)/30, (y - y0)/30, (z - z0)/30) -- for the benefit of unit AI and possibly target prediction (probably not the latter)
 			end
 
-			Spring.UnitScript.CallAsUnit(unitID,env.jumping, 1, i * 100)
+			Spring.UnitScript.CallAsUnit(unitID, env.jumping, i * 100)
 		
 			if (not halfJump and i > 0.5) then
 				Spring.UnitScript.CallAsUnit(unitID,env.halfJump)
@@ -345,14 +371,13 @@ local function Jump(unitID, goal, cmdTag, origCmdParams)
 			end
 			
 			Sleep()
-			--[[ Slow damage
-			local slowMult = 1-(Spring.GetUnitRulesParam(unitID, "slowState") or 0)
-			i = i + (step*slowMult)
-			]]
 			i = i + step
 		end
 
 		Spring.UnitScript.CallAsUnit(unitID,env.endJump)
+		if PLAY_SOUND then
+			GG.PlayFogHiddenSound("JumpLand", UnitDefs[unitDefID].mass/10, goal[1], goal[2], goal[3])
+		end
 		local jumpEndTime = spGetGameSeconds()
 		lastJumpPosition[unitID] = origCmdParams
 		jumping[unitID] = nil
@@ -362,8 +387,8 @@ local function Jump(unitID, goal, cmdTag, origCmdParams)
 		mcDisable(unitID)
 
 		if Spring.ValidUnitID(unitID) and (not Spring.GetUnitIsDead(unitID)) then
-			spGiveOrderToUnit(unitID,CMD_WAIT, {}, {})
-			spGiveOrderToUnit(unitID,CMD_WAIT, {}, {})
+			spGiveOrderToUnit(unitID,CMD_WAIT, {}, 0)
+			spGiveOrderToUnit(unitID,CMD_WAIT, {}, 0)
 		end
 		
 		if hitStructure then
@@ -393,7 +418,12 @@ local function Jump(unitID, goal, cmdTag, origCmdParams)
 		
 		while reloadAmount < 1 do
 			local morphedTo = Spring.GetUnitRulesParam(unitID, "wasMorphedTo")
-			if morphedTo then unitID = morphedTo end
+			if morphedTo then 
+				unitID = morphedTo 
+			end
+			if (not Spring.ValidUnitID(unitID) or Spring.GetUnitIsDead(unitID)) then 
+				return 
+			end
 
 			local stunnedOrInbuild = spGetUnitIsStunned(unitID)
 			local reloadFactor = (stunnedOrInbuild and 0) or spGetUnitRulesParam(unitID, "totalReloadSpeedChange") or 1
@@ -407,23 +437,24 @@ local function Jump(unitID, goal, cmdTag, origCmdParams)
 	return true, false
 end
 
--- a bit convoluted for this but might be					 
+-- a bit convoluted for this but might be
 -- useful for lua unit scripts
 local function UpdateCoroutines() 
 	local newCoroutines = {} 
-	for i=1, #coroutines do 
+	for i = 1, #coroutines do 
 		local co = coroutines[i] 
 		if (coroutine.status(co) ~= "dead") then 
 			newCoroutines[#newCoroutines + 1] = co 
 		end 
 	end 
 	coroutines = newCoroutines 
-	for i=1, #coroutines do 
+	for i = 1, #coroutines do 
 		assert(coroutine.resume(coroutines[i]))
 	end
 end
 
 function gadget:Initialize()
+	Spring.SetGameRulesParam("jumpJets", 1)
 	Spring.SetCustomCommandDrawData(CMD_JUMP, "Jump", {0, 1, 0, 0.7})
 	Spring.AssignMouseCursor("Jump", "cursorJump", true, true)
 	gadgetHandler:RegisterCMDID(CMD_JUMP)
@@ -435,7 +466,7 @@ end
 function gadget:UnitCreated(unitID, unitDefID, unitTeam)
 	if (not jumpDefs[unitDefID]) then
 		return
-	end 
+	end
 	Spring.SetUnitRulesParam(unitID, "jumpReload", 1)
 	spInsertUnitCmdDesc(unitID, jumpCmdDesc)
 end
@@ -452,30 +483,25 @@ end
 
 function gadget:UnitDestroyed(oldUnitID, unitDefID)
 	if jumping[oldUnitID] then
-		jumping[oldUnitID] = nil --empty old unit's data
+		jumping[oldUnitID] = nil -- empty old unit's data
 	end
-end
-
-function gadget:AllowCommand_GetWantedCommand()	
-	return true
-end
-
-local boolDef = {}
-for udid,_ in pairs(jumpDefs) do
-	boolDef[udid] = true
-end
-
-function gadget:AllowCommand_GetWantedUnitDefID()
-	return boolDef
 end
 
 function gadget:AllowCommand(unitID, unitDefID, teamID, cmdID, cmdParams, cmdOptions)
-	if (jumpDefs[unitDefID].noJumpHandling) then 
+
+	if cmdID == CMD.INSERT and cmdParams[2] == CMD_JUMP then
+		return gadget:AllowCommand(unitID, unitDefID, teamID, CMD_JUMP, {cmdParams[4], cmdParams[5], cmdParams[6]}, cmdParams[3])
+	end
+	
+	if not jumpDefs[unitDefID] then 
+		if cmdID == CMD_JUMP then
+			return false
+		end
 		return true
 	end
 	
-	if cmdID == CMD.INSERT and cmdParams[2] == CMD_JUMP then
-		return gadget:AllowCommand(unitID, unitDefID, teamID, CMD_JUMP, {cmdParams[4], cmdParams[5], cmdParams[6]}, cmdParams[3])
+	if (jumpDefs[unitDefID].noJumpHandling) then 
+		return true
 	end
 	
 	if cmdID == CMD_JUMP and cmdParams[3] then
@@ -484,18 +510,14 @@ function gadget:AllowCommand(unitID, unitDefID, teamID, cmdID, cmdParams, cmdOpt
 		else
 			-- Check whether the terrain is the source of the blockage. If it is not then
 			-- conclude that the blockage is a structure.
-			local height = spGetGroundHeight(cmdParams[1],cmdParams[3])
-			if (not UnitDefs[unitDefID]) or height < -UnitDefs[unitDefID].maxWaterDepth then
-				-- Water too deep for the unit to walk on
-				return false
-			end
+			-- Jumping into water is allowed.
 			
 			local normal = select(2, spGetGroundNormal(cmdParams[1],cmdParams[3]))
 			-- Most of the time the normal will be close to 1 because structures are built on
 			-- flat ground. This check captures high slope tolerance things such as Windgens and
 			-- small turrets.
 			if normal < 0.6 then
-				 -- Ground is too steep for bots to walk on.
+				-- Ground is too steep for bots to walk on.
 				return false
 			end
 			
@@ -505,7 +527,7 @@ function gadget:AllowCommand(unitID, unitDefID, teamID, cmdID, cmdParams, cmdOpt
 	end
 	if goalSet[unitID] then
 		goalSet[unitID] = nil
-	end	
+	end
 	return true -- allowed
 end
 
@@ -524,6 +546,10 @@ function gadget:CommandFallback(unitID, unitDefID, teamID, cmdID, cmdParams, cmd
 
 	if not Spring.ValidUnitID(unitID) then
 		return true, true
+	end
+
+	if ((Spring.GetUnitRulesParam(unitID, "orbitalDrop") or 0) == 1) then
+		return true, false
 	end
 
 	if (jumping[unitID]) then
@@ -545,7 +571,6 @@ function gadget:CommandFallback(unitID, unitDefID, teamID, cmdID, cmdParams, cmd
 	local range   = jumpDef.range
 
 	if (distSqr < (range*range)) then
-		local cmdTag = spGetCommandQueue(unitID,1)[1].tag
 		if (Spring.GetUnitRulesParam(unitID, "jumpReload") >= 1) and Spring.GetUnitRulesParam(unitID,"disarmed") ~= 1 then
 			local coords = table.concat(cmdParams)
 			local currFrame = spGetGameFrame()
@@ -555,7 +580,7 @@ function gadget:CommandFallback(unitID, unitDefID, teamID, cmdID, cmdParams, cmd
 				end
 			end
 			if (not jumps[coords]) or jumpDefs[unitDefID].JumpSpreadException then
-				local didJump, removeCommand = Jump(unitID, cmdParams, cmdTag, cmdParams)
+				local didJump, removeCommand = Jump(unitID, cmdParams, cmdParams)
 				if not didJump then
 					return true, removeCommand -- command was used
 				end
@@ -567,7 +592,7 @@ function gadget:CommandFallback(unitID, unitDefID, teamID, cmdID, cmdParams, cmd
 					cmdParams[1] + random(-r, r),
 					cmdParams[2],
 					cmdParams[3] + random(-r, r)}
-				local didJump, removeCommand = Jump(unitID, randpos, cmdTag, cmdParams)
+				local didJump, removeCommand = Jump(unitID, randpos, cmdParams)
 				if not didJump then
 					return true, removeCommand -- command was used
 				end
@@ -585,12 +610,50 @@ function gadget:CommandFallback(unitID, unitDefID, teamID, cmdID, cmdParams, cmd
 	return true, false -- command was used but don't remove it
 end
 
+function gadget:UnitFromFactory(unitID, unitDefID, unitTeam, facID, facDefID)
+	if jumpDefs[unitDefID] then
+		local queue = spGetCommandQueue(unitID, 2)
+		-- The first command in the queue is a move command added by the engine.
+		local cmdID_1, cmdID_2, cmdTag_1
+		if Spring.Utilities.COMPAT_GET_ORDER then
+			local queue = Spring.GetCommandQueue(unitID, 2)
+			if queue and queue[1] and queue[2] then
+				cmdID_1, cmdID_2, cmdTag_1 = queue[1].id, queue[2].id, queue[1].tag
+			end
+		else
+			cmdID_1, _, cmdTag_1 = Spring.GetUnitCurrentCommand(unitID)
+			cmdID_2 = Spring.GetUnitCurrentCommand(unitID, 2)
+		end
+		if cmdID_1 and cmdID_2 then
+			if cmdID_1 == CMD_MOVE and cmdID_2 == CMD_JUMP then
+				Spring.GiveOrderToUnit(unitID, CMD_REMOVE, {cmdTag_1}, 0)
+			end
+		end
+	end
+end
 
 function gadget:GameFrame(currFrame)
 	UpdateCoroutines()
 	for coords, queue_n_age in pairs(jumps) do 
 		if currFrame-queue_n_age[2] > 300 then
 			jumps[coords] = nil
+		end
+	end
+end
+
+--------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
+-- Save/Load
+
+function gadget:Load(zip)
+	for _, unitID in ipairs(Spring.GetAllUnits()) do
+		if Spring.GetUnitRulesParam(unitID, "is_jumping") == 1 then
+			local goalX = Spring.GetUnitRulesParam(unitID, "jump_goal_x")
+			local goalZ = Spring.GetUnitRulesParam(unitID, "jump_goal_z")
+			if goalX and goalZ then
+				local goal = {goalX, 0, goalZ}
+				Jump(unitID, goal, goal, true)
+			end
 		end
 	end
 end

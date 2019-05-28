@@ -7,7 +7,7 @@ function gadget:GetInfo()
 		version   = "v1.1",
 		date      = "November 2010",
 		license   = "GNU GPL, v2 or later",
-		layer     = -math.huge,
+		layer     = -math.huge + 5,
 		enabled   = true
 	}
 end
@@ -70,11 +70,10 @@ local metalmapStartZ = 1.5 * gridSize
 -- Variables
 ------------------------------------------------------------
 
-local mexUnitDef = UnitDefNames["cormex"]
+local mexUnitDef = UnitDefNames["staticmex"]
 
 local mexDefInfo = {
 	extraction = 0.001,
-	square = false,
 	oddX = mexUnitDef.xsize % 4 == 2,
 	oddZ = mexUnitDef.zsize % 4 == 2,
 }
@@ -104,10 +103,14 @@ end
 ------------------------------------------------------------
 -- Set Game Rules so widgets can read metal spots
 ------------------------------------------------------------
-local function SetMexGameRulesParams(metalSpots)
+local function SetMexGameRulesParams(metalSpots, needMexDrawing)
 	if not metalSpots then -- Mexes can be built anywhere
 		spSetGameRulesParam("mex_count", -1)
 		return
+	end
+	
+	if needMexDrawing then
+		spSetGameRulesParam("mex_need_drawing", 1)
 	end
 	
 	local mexCount = #metalSpots
@@ -127,10 +130,10 @@ end
 ------------------------------------------------------------
 function gadget:Initialize()
 	Spring.Log(gadget:GetInfo().name, LOG.INFO, "Mex Spot Finder Initialising")
-	local metalSpots = GetSpots()
+	local metalSpots, fromEngineMetalmap = GetSpots()
 	local metalSpotsByPos = false
 	
-	if #metalSpots < 6 then
+	if fromEngineMetalmap and #metalSpots < 6 then
 		Spring.Log(gadget:GetInfo().name, LOG.INFO, "Indiscrete metal map detected")
 		metalSpots = false
 	end
@@ -139,7 +142,6 @@ function gadget:Initialize()
 	
 	if metalSpots then
 		local mult = (modOptions and modOptions.metalmult) or 1
-		local oremex_mult = (modOptions and modOptions.oremex and tonumber(modOptions.oremex) == 1) and 0.75 or 1 -- as a test to make maps produce less metal overall
 		local i = 1
 		while i <= #metalSpots do
 			local spot = metalSpots[i]
@@ -147,7 +149,7 @@ function gadget:Initialize()
 				if metalValueOverride then
 					spot.metal = metalValueOverride
 				end
-				spot.metal = spot.metal*mult*oremex_mult
+				spot.metal = spot.metal*mult
 				i = i + 1
 			else
 				metalSpots[i] = metalSpots[#metalSpots]
@@ -158,7 +160,8 @@ function gadget:Initialize()
 		metalSpotsByPos = GetSpotsByPos(metalSpots)
 	end
 	
-	SetMexGameRulesParams(metalSpots)
+	local needMexDrawing = (gameConfig and gameConfig.needMexDrawing) or (mapConfig and mapConfig.needMexDrawing)
+	SetMexGameRulesParams(metalSpots, needMexDrawing)
 
 	GG.metalSpots = metalSpots
 	GG.metalSpotsByPos = metalSpotsByPos
@@ -197,28 +200,17 @@ function IntegrateMetal(x, z, radius)
 	endX, endZ = min(endX, MAP_SIZE_X_SCALED - 1), min(endZ, MAP_SIZE_Z_SCALED - 1)
 	
 	local mult = mexDefInfo.extraction
-	local square = mexDefInfo.square
 	local result = 0
-	
-	if (square) then
-		for i = startX, endX do
-			for j = startZ, endZ do
-				local cx, cz = (i + 0.5) * METAL_MAP_SQUARE_SIZE, (j + 0.5) * METAL_MAP_SQUARE_SIZE
+
+	for i = startX, endX do
+		for j = startZ, endZ do
+			local cx, cz = (i + 0.5) * METAL_MAP_SQUARE_SIZE, (j + 0.5) * METAL_MAP_SQUARE_SIZE
+			local dx, dz = cx - centerX, cz - centerZ
+			local dist = sqrt(dx * dx + dz * dz)
+
+			if (dist < radius) then
 				local _, metal = spGetGroundInfo(cx, cz)
-				result = result + metal
-			end
-		end
-	else
-		for i = startX, endX do
-			for j = startZ, endZ do
-				local cx, cz = (i + 0.5) * METAL_MAP_SQUARE_SIZE, (j + 0.5) * METAL_MAP_SQUARE_SIZE
-				local dx, dz = cx - centerX, cz - centerZ
-				local dist = sqrt(dx * dx + dz * dz)
-				
-				if (dist < radius) then
-					local _, metal = spGetGroundInfo(cx, cz)
-					result = result + metal
-				end
+				result = result + (metal or 0)
 			end
 		end
 	end
@@ -229,7 +221,7 @@ end
 ------------------------------------------------------------
 -- Mex finding
 ------------------------------------------------------------
-local function SanitiseSpots(spots)
+local function SanitiseSpots(spots, metalValueOverride)
 	local i = 1
 	while i <= #spots do
 		local spot = spots[i]
@@ -237,7 +229,7 @@ local function SanitiseSpots(spots)
 			local metal
 			metal, spot.x, spot.z = IntegrateMetal(spot.x, spot.z)
 			spot.y = spGetGroundHeight(spot.x, spot.z)
-			spot.metal = metalValueOverride or spot.metal or (metal > 0 and metal) or DEFAULT_MEX_INCOME
+			spot.metal = spot.metal or metalValueOverride or (metal > 0 and metal) or DEFAULT_MEX_INCOME
 			i = i + 1
 		else
 			spot[i] = spot[#spots]
@@ -273,16 +265,16 @@ function GetSpots()
 	if gameConfig then
 		Spring.Log(gadget:GetInfo().name, LOG.INFO, "Loading gameside mex config")
 		if gameConfig.spots then
-			spots = SanitiseSpots(gameConfig.spots)
-			return spots
+			spots = SanitiseSpots(gameConfig.spots, gameConfig.metalValueOverride)
+			return spots, false
 		end
 	end
 	
 	if mapConfig then
 		Spring.Log(gadget:GetInfo().name, LOG.INFO, "Loading mapside mex config")
 		loadConfig = true
-		spots = SanitiseSpots(mapConfig.spots)
-		return spots
+		spots = SanitiseSpots(mapConfig.spots, mapConfig.metalValueOverride)
+		return spots, false
 	end
 	
 	Spring.Log(gadget:GetInfo().name, LOG.INFO, "Detecting mex config from metalmap")
@@ -428,7 +420,7 @@ function GetSpots()
 	--	Spring.MarkerAddPoint(spots[i].x,spots[i].y,spots[i].z,"")
 	--end
 	
-	return spots
+	return spots, true
 end
 
 function GetValidStrips(spot)
@@ -471,7 +463,7 @@ function gadget:GameStart()
 	local encoded = false;
 	
 	for _, teamID in pairs(teamlist) do
-		local _,_,_,isAI = Spring.GetTeamInfo(teamID)
+		local _,_,_,isAI = Spring.GetTeamInfo(teamID, false)
 		if isAI then
 			local aiid, ainame, aihost = Spring.GetAIInfo(teamID);
 			if (aihost == localPlayer) then

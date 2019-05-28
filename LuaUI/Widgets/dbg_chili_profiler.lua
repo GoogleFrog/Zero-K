@@ -25,6 +25,7 @@ local profiling = false
 
 local sample_tree = {}
 local samples = 0
+local profilePeriod = 25
 
 local min_usage = 0.01
 
@@ -35,7 +36,7 @@ local n = 0
 local s = 0
 local function trace(event, line)
 	n = n + 1
-	if (n < 25) then
+	if (n < profilePeriod) then
 		return
 	end
 	n = 0
@@ -98,7 +99,23 @@ end
 local function AddProfiler()
 	if profiling then return end
 	profiling = true
+	profilePeriod = 25
 	debug.sethook(trace, "l", 16000000)
+end
+
+local function AddSedateProfiler()
+	if profiling then return end
+	profiling = true
+	profilePeriod = 2000
+	debug.sethook(trace, "l", 16000000)
+end
+
+local function ResetProfiler()
+	if profiling then return end
+	tree0.root:ClearChildren()
+	sample_tree = {}
+	samples = 0
+	label0:SetCaption("Samples: " .. samples)
 end
 
 --------------------------------------------------------------------------------
@@ -143,13 +160,25 @@ function widget:Initialize()
 				},
 			},
 			Chili.Button:New{
-				x=0, right="50%",
+				x=0, right="75%",
 				y=-20, bottom=0,
 				caption="start",
 				OnClick = {AddProfiler},
 			},
 			Chili.Button:New{
-				x="50%", right=0,
+				x="25%", right="50%",
+				y=-20, bottom=0,
+				caption="sedate",
+				OnClick = {AddSedateProfiler},
+			},
+			Chili.Button:New{
+				x="50%", right="25%",
+				y=-20, bottom=0,
+				caption="reset",
+				OnClick = {ResetProfiler},
+			},
+			Chili.Button:New{
+				x="75%", right=0,
 				y=-20, bottom=0,
 				caption = "stop",
 				OnClick = {function() debug.sethook( nil ); profiling = false; rendertree() end},

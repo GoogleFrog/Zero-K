@@ -2,20 +2,21 @@ local name = "commweapon_peashooter"
 local weaponDef = {
 	name                    = [[Laser Blaster]],
 	areaOfEffect            = 8,
-	beamWeapon              = true,
 	coreThickness           = 0.5,
 	craterBoost             = 0,
 	craterMult              = 0,
 
-	customParams			= {
+	customParams            = {
 		slot = [[5]],
 		muzzleEffectShot = [[custom:BEAMWEAPON_MUZZLE_RED]],
+
+		light_camera_height = 1200,
+		light_radius = 120,
 	},
 
 	damage                  = {
-		default = 10.5,
-		planes  = 10.5,
-		subs    = 0.55,
+		default = 12,
+		subs    = 0.6,
 	},
 
 	duration                = 0.02,
@@ -26,7 +27,6 @@ local weaponDef = {
 	impulseBoost            = 0,
 	impulseFactor           = 0.4,
 	interceptedByShieldType = 1,
-	lineOfSight             = true,
 	noSelfDamage            = true,
 	range                   = 300,
 	reloadtime              = 0.1,
@@ -35,7 +35,7 @@ local weaponDef = {
 	soundStart              = [[weapon/laser/small_laser_fire2]],
 	soundTrigger            = true,
 	thickness               = 2.55,
-	tolerance               = 10000,
+	tolerance               = 1000,
 	turret                  = true,
 	weaponType              = [[LaserCannon]],
 	weaponVelocity          = 880,

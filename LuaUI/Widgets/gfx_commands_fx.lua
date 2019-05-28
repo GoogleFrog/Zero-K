@@ -33,7 +33,6 @@ local commandList = {}
 
 local spGetUnitPosition			= Spring.GetUnitPosition
 local spGetCameraPosition		= Spring.GetCameraPosition
-local spGetUnitCommands			= Spring.GetUnitCommands
 local spGetPlayerInfo			= Spring.GetPlayerInfo
 local spTraceScreenRay			= Spring.TraceScreenRay
 local spLoadCmdColorsConfig		= Spring.LoadCmdColorsConfig
@@ -42,19 +41,22 @@ local spGetTeamColor			= Spring.GetTeamColor
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
 
-options_path = 'Settings/Interface/Command Visibility/Formations'
-options_order = { 'indicate_cf', 'onClick'}
+options_path = 'Settings/Interface/Command Visibility'--/Formations'
+options_order = { 'lblformations', 'indicate_cf_v2', 'onClick'}
 options = {
-	indicate_cf = {
+	lblformations = { name = 'Formations', type = 'label'},
+	indicate_cf_v2 = {
 		name = "Indicate for custom formations", 
 		desc = "Draw the command indication for commands given with custom formations.",
 		type = 'bool', 
-		value = false
+		noHotkey = true,
+		value = true
 	},
 	onClick = {
 		name = "Indicate for clicks", 
 		desc = "Draw the command indication for every click.",
 		type = 'bool', 
+		noHotkey = true,
 		value = false
 	}
 }
@@ -111,6 +113,12 @@ local OPTIONS = {
 			ringColor		= {1.00 ,1.00 ,1.00 ,0.00}
 		},
 		[CMD.MOVE] = {
+			size			= 1,
+			duration		= 1,
+			baseColor		= {0.00 ,1.00 ,0.00 ,0.25},
+			ringColor		= {0.00 ,1.00 ,0.00 ,0.25}
+		},
+		[CMD_RAW_MOVE] = {
 			size			= 1,
 			duration		= 1,
 			baseColor		= {0.00 ,1.00 ,0.00 ,0.25},
@@ -327,7 +335,7 @@ function widget:CommandNotify(cmdID, cmdParams, options)
 end
 
 function widget:UnitCommandNotify(unitID, cmdID, cmdParams, cmdOptions)
-	if options.indicate_cf.value then
+	if options.indicate_cf_v2.value then
 		if type(cmdParams) == 'table' and #cmdParams >= 3 and OPTIONS.types[cmdID] then
 			AddCommandSpotter(cmdID, cmdParams[1], cmdParams[2], cmdParams[3], os.clock(), unitID)
 		end
@@ -394,7 +402,7 @@ function widget:DrawWorldPreUnit()
 				
 				-- use player colors
 				if  cmdType == 'map_mark'   or   cmdType == 'map_draw'  or  cmdType == 'map_erase'  then
-					local _,_,spec,teamID = spGetPlayerInfo(playerID)
+					local _,_,spec,teamID = spGetPlayerInfo(playerID, false)
 					local r,g,b = 1,1,1
 					if not spec then
 						r,g,b = spGetTeamColor(teamID)
@@ -455,7 +463,7 @@ function widget:DrawWorldPreUnit()
 				-- draw + erase:   nickname / draw icon
 				if  playerID  and  playerID ~= ownPlayerID  and  OPTIONS.showMapmarkSpecNames  and   (cmdType == 'map_draw'  or    cmdType == 'map_erase' and  clickOsClock >= mapEraseNicknameTime[playerID]) then
 					
-					local nickname,_,spec = spGetPlayerInfo(playerID)
+					local nickname,_,spec = spGetPlayerInfo(playerID, false)
 					if (spec) then
 						gl.Color(r,g,b, a * OPTIONS.nicknameOpacityMultiplier)
 							

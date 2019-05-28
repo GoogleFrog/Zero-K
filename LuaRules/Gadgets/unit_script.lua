@@ -40,8 +40,6 @@ if (not gadgetHandler:IsSyncedCode()) then
 	return false
 end
 
-local reverseCompat = (not Spring.Utilities.IsCurrentVersionNewerThan(94, 0)) and 1 or 0
-
 -- This lists all callins which may be wrapped in a coroutine (thread).
 -- The ones which should not be thread-wrapped are commented out.
 -- Create, Killed, AimWeapon and AimShield callins are always wrapped.
@@ -111,6 +109,8 @@ local co_resume = coroutine.resume
 local co_yield = coroutine.yield
 local co_running = coroutine.running
 
+local debugMode = false
+
 local bit_and = math.bit_and
 local floor = math.floor
 
@@ -126,8 +126,9 @@ local sp_WaitForMove = Spring.UnitScript.WaitForMove
 local sp_WaitForTurn = Spring.UnitScript.WaitForTurn
 local sp_SetPieceVisibility = Spring.UnitScript.SetPieceVisibility
 local sp_SetDeathScriptFinished = Spring.UnitScript.SetDeathScriptFinished
+local sp_Turn = Spring.UnitScript.Turn
 
-local LUA_WEAPON_MIN_INDEX = 1 - reverseCompat
+local LUA_WEAPON_MIN_INDEX = 1
 local LUA_WEAPON_MAX_INDEX = LUA_WEAPON_MIN_INDEX + 31
 
 local UNITSCRIPT_DIR = (UNITSCRIPT_DIR or "scripts/"):lower()
@@ -254,6 +255,10 @@ end
 local function WakeUp(thread, ...)
 	thread.container = nil
 	local co = thread.thread
+	if debugMode and not co then
+		Spring.Echo("Error in WakeUp", thread.unitID)
+		Spring.Utilities.UnitEcho(thread.unitID, UnitDefs[Spring.GetUnitDefID(thread.unitID)].name)
+	end
 	local good, err = co_resume(co, ...)
 	if (not good) then
 		Spring.Log(section, LOG.ERROR, err)
@@ -291,6 +296,7 @@ end
 local function TurnFinished(piece, axis)
 	local activeUnit = GetActiveUnit()
 	local activeAnim = activeUnit.waitingForTurn
+	activeUnit.pieceRotSpeeds[piece][axis] = 0
 	return AnimFinished(activeAnim, piece, axis)
 end
 
@@ -338,14 +344,39 @@ function Spring.UnitScript.WaitForMove(piece, axis)
 end
 
 -- overwrites engine's WaitForTurn
+local tau = 2 * math.pi
 function Spring.UnitScript.WaitForTurn(piece, axis)
+	local activeUnit = GetActiveUnit()
+	local speed = activeUnit.pieceRotSpeeds[piece][axis]
+	if speed == 0 then
+		return
+	end
+
+	local currRot = select(axis, Spring.UnitScript.GetPieceRotation(piece))
+	if not currRot then
+		-- Unit is probably dead or destroyed.
+		return
+	end
+	
+	local targetRot = activeUnit.pieceRotTargets[piece][axis]
+	local diffRot = (currRot - targetRot) % tau
+	if diffRot < speed or diffRot > (tau - speed) then
+		return
+	end
+
 	if sp_WaitForTurn(piece, axis) then
-		local activeUnit = GetActiveUnit()
 		return WaitForAnim(activeUnit.threads, activeUnit.waitingForTurn, piece, axis)
 	end
 end
 
-
+function Spring.UnitScript.Turn(piece, axis, targetRot, speed)
+	local activeUnit = GetActiveUnit()
+	if speed then
+		activeUnit.pieceRotTargets[piece][axis] = targetRot
+		activeUnit.pieceRotSpeeds[piece][axis] = speed / Game.gameSpeed
+	end
+	return sp_Turn(piece, axis, targetRot, speed)
+end
 
 function Spring.UnitScript.Sleep(milliseconds)
 	local n = floor(milliseconds / 33)
@@ -371,6 +402,10 @@ end
 
 function Spring.UnitScript.StartThread(fun, ...)
 	local activeUnit = GetActiveUnit()
+	if debugMode and not fun then
+		Spring.Echo("Error in StartThread", activeUnit.unitID)
+		Spring.Utilities.UnitEcho(activeUnit.unitID, UnitDefs[Spring.GetUnitDefID(activeUnit.unitID)].name)
+	end
 	local co = co_create(fun)
 	-- signal_mask is inherited from current thread, if any
 	local thd = co_running() and activeUnit.threads[co_running()]
@@ -521,9 +556,18 @@ local function LoadScript(scriptName, filename)
 	return chunk
 end
 
+local function ToggleScriptDebug(cmd, line, words, player)
+	if not Spring.IsCheatingEnabled() then 
+		return
+	end
+	
+	debugMode = not debugMode
+	Spring.Echo("Script debug mode", debugMode)
+end
 
 function gadget:Initialize()
 	Spring.Log(section, LOG.INFO, string.format("Loading gadget: %-18s  <%s>", ghInfo.name, ghInfo.basename))
+	gadgetHandler:AddChatAction("scriptdebug", ToggleScriptDebug, "Toggles script debug output.")
 
 	-- This initialization code has following properties:
 	--  * all used scripts are loaded => early syntax error detection
@@ -774,6 +818,14 @@ function gadget:UnitCreated(unitID, unitDefID)
 	-- Register the callins with Spring.
 	Spring.UnitScript.CreateScript(unitID, callins)
 
+	-- cache piece rotation values for WaitForTurn
+	local pieceRotSpeeds = {}
+	local pieceRotTargets = {}
+	for pieceName, pieceID in pairs(pieces) do
+		pieceRotSpeeds[pieceID] = {0, 0, 0}
+		pieceRotTargets[pieceID] = {0, 0, 0}
+	end
+
 	-- Register (must be last: it shouldn't be done in case of error.)
 	units[unitID] = {
 		env = env,
@@ -781,6 +833,8 @@ function gadget:UnitCreated(unitID, unitDefID)
 		waitingForMove = {},
 		waitingForTurn = {},
 		threads = setmetatable({}, {__mode = "kv"}), -- weak table
+		pieceRotSpeeds = pieceRotSpeeds,
+		pieceRotTargets = pieceRotTargets,
 	}
 
 	-- Now it's safe to start a thread which will run Create().

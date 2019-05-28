@@ -2,7 +2,6 @@ unitDef = {
   unitname                      = [[seismic]],
   name                          = [[Quake]],
   description                   = [[Seismic Missile]],
-  buildCostEnergy               = 400,
   buildCostMetal                = 400,
   builder                       = false,
   buildingGroundDecalDecaySpeed = 30,
@@ -10,20 +9,12 @@ unitDef = {
   buildingGroundDecalSizeY      = 3,
   buildingGroundDecalType       = [[seismic_aoplane.dds]],
   buildPic                      = [[seismic.png]],
-  buildTime                     = 400,
-  canAttack                     = true,
   category                      = [[SINK UNARMED]],
   collisionVolumeOffsets        = [[0 15 0]],
   collisionVolumeScales         = [[20 50 20]],
-  collisionVolumeTest	        = 1,
   collisionVolumeType	        = [[CylY]],
 
   customParams                  = {
-    description_de = [[Seismische Rakete]],
-    description_pl = [[Rakieta Sejsmiczna]],
-    helptext       = [[The Quake creates a powerful seismic shockwave that smooths a wide area of terrain, while causing minimal harm to units.]],
-    helptext_de    = [[Die Rakete Quake erzeugt eine akustische Schockwelle, welche die anliegend Boden glatt macht, aber nur minimale Schäden an Einheiten aus Metall und Kohlenstoff-Nanoröhrchen verursacht.]],
-    helptext_pl    = [[Jednorazowa rakieta sejsmiczna dalekiego zasiegu. Nie zadaje obrazen, ale wyrownuje okoliczny teren.]],
     mobilebuilding = [[1]],
   },
 
@@ -38,7 +29,6 @@ unitDef = {
   minCloakDistance              = 150,
   objectName                    = [[wep_seismic.s3o]],
   script                        = [[cruisemissile.lua]],
-  seismicSignature              = 4,
   selfDestructAs                = [[SEISMIC_WEAPON]],
 
   sfxtypes                      = {
@@ -79,6 +69,14 @@ unitDef = {
         smoothradius = [[256]],
         detachmentradius = [[256]],
         smoothmult   = [[1]],
+
+        restrict_in_widgets = 1,
+
+		stats_hide_dps = 1, -- one use
+		stats_hide_reload = 1,
+		
+		light_color = [[1.2 1.6 0.55]],
+		light_radius = 550,
       },
 	  
       damage                  = {
@@ -91,13 +89,10 @@ unitDef = {
       fireStarter             = 0,
       flightTime              = 100,
       interceptedByShieldType = 1,
-      levelGround             = false,
       model                   = [[wep_seismic.s3o]],
       noSelfDamage            = true,
       range                   = 6000,
       reloadtime              = 10,
-      shakeduration           = [[4]],
-      shakemagnitude          = [[32]],
       smokeTrail              = false,
       soundHit                = [[explosion/ex_large4]],
       soundStart              = [[weapon/missile/tacnuke_launch]],

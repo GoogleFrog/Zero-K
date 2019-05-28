@@ -19,9 +19,9 @@ if (not gadgetHandler:IsSyncedCode()) then
   return false  --  no unsynced code
 end
 
-local FRAMES_PER_SECOND = 30
+local FRAMES_PER_SECOND = Game.gameSpeed
 
-local DECAY_FRAMES = 1200 -- time in frames it takes to decay 100% para to 0
+local DECAY_FRAMES = 40 * FRAMES_PER_SECOND -- time in frames it takes to decay 100% para to 0
 
 local LOS_ACCESS = {inlos = true}
 
@@ -39,11 +39,9 @@ for wid = 1, #WeaponDefs do
 			disarmTimer = wcp.disarmtimer*FRAMES_PER_SECOND,
 		}
 		wantedWeaponList[#wantedWeaponList + 1] = wid
-	elseif wd.paralyzer then
-		paraWeapons[wid] = {
-			paraTime = wd.damages.paralyzeDamageTime*FRAMES_PER_SECOND,
-			maxParaDamage = (wd.damages.paralyzeDamageTime+40)/40,
-		}
+	elseif wd.paralyzer or wd.customParams.extra_damage then
+		local paraTime = wd.paralyzer and wd.damages.paralyzeDamageTime or wd.customParams.extra_paratime
+		paraWeapons[wid] = paraTime * FRAMES_PER_SECOND
 		wantedWeaponList[#wantedWeaponList + 1] = wid
 	end
 end
@@ -62,6 +60,11 @@ local paraUnitID = {}
 -- table[unitID] = {frameID = x, index = y}
 -- stores current frame and index of unitID in their respective tables
 
+local weaponCount = {}
+for udid, ud in pairs(UnitDefs) do
+	weaponCount[udid] = #ud.weapons
+end
+
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
 
@@ -70,12 +73,20 @@ local f = 0 -- frame, set in game frame
 local function applyEffect(unitID)
 	Spring.SetUnitRulesParam(unitID, "disarmed", 1, LOS_ACCESS)
 	GG.UpdateUnitAttributes(unitID)
-	GG.ScriptNotifyDisarmed(unitID)
+	GG.ScriptNotifyDisarmed(unitID, true)
 end
 
 local function removeEffect(unitID)
 	Spring.SetUnitRulesParam(unitID, "disarmed", 0, LOS_ACCESS)
 	GG.UpdateUnitAttributes(unitID)
+	GG.ScriptNotifyDisarmed(unitID, false)
+end
+
+local function HaltBurst(unitID, untilFrame)
+	local unitDefID = Spring.GetUnitDefID(unitID)
+	for i = 1, weaponCount[unitDefID] do
+		Spring.SetUnitWeaponState (unitID, i, "nextSalvo", untilFrame)
+	end
 end
 
 local function addUnitID(unitID, byFrame, byUnitID, frame, extraParamFrames)
@@ -84,6 +95,9 @@ local function addUnitID(unitID, byFrame, byUnitID, frame, extraParamFrames)
 	byFrame[frame].data[byFrame[frame].count] = unitID
 	byUnitID[unitID] = {frameID = frame, index = byFrame[frame].count}
 
+	if (extraParamFrames > 0) then
+		HaltBurst(unitID, frame)
+	end
 	Spring.SetUnitRulesParam(unitID, "disarmframe", frame + extraParamFrames, LOS_ACCESS)
 end
 
@@ -100,7 +114,10 @@ local function moveUnitID(unitID, byFrame, byUnitID, frame, extraParamFrames)
 	byFrame[frame].count = byFrame[frame].count + 1
 	byFrame[frame].data[ byFrame[frame].count] = unitID
 	byUnitID[unitID] = {frameID = frame, index = byFrame[frame].count}
-	
+
+	if (extraParamFrames > 0) then
+		HaltBurst(unitID, frame)
+	end
 	Spring.SetUnitRulesParam(unitID, "disarmframe", frame + extraParamFrames, LOS_ACCESS)
 end
 
@@ -184,11 +201,11 @@ function gadget:UnitPreDamaged(unitID, unitDefID, unitTeam, damage, paralyzer,
 		addParalysisDamageToUnit(unitID, damage*def.damageMult, def.disarmTimer)
 		return damage*def.normalDamage
 	end
-	
-	if paraWeapons[weaponDefID] and (partialUnitID[unitID] or paraUnitID[unitID]) then
-		local def = paraWeapons[weaponDefID]
-		addParalysisDamageToUnit(unitID, damage, def.paraTime)
+
+	if paralyzer and (partialUnitID[unitID] or paraUnitID[unitID]) then
+		addParalysisDamageToUnit(unitID, damage, paraWeapons[weaponDefID])
 	end
+
 	return damage
 end
 
@@ -226,4 +243,44 @@ function gadget:UnitDestroyed(unitID, unitDefID, unitTeam)
 	if paraUnitID[unitID] then
 		removeUnitID(unitID, paraUnits, paraUnitID)
 	end
+end
+
+--helps removing "disarmed" attribute from unit upon gadget reload
+local function InitReload()
+	local spGetUnitRulesParam = Spring.GetUnitRulesParam
+	local gameFrame = Spring.GetGameFrame()
+	local allUnits = Spring.GetAllUnits()
+	for _, unitID in pairs(allUnits) do
+		local disarmFrame = spGetUnitRulesParam(unitID, "disarmframe")
+		if (disarmFrame and gameFrame == -1) then disarmFrame = gameFrame end
+		
+		if disarmFrame then
+			if disarmFrame > gameFrame + DECAY_FRAMES then --fully disarmed
+				addUnitID(unitID, paraUnits, paraUnitID, disarmFrame - DECAY_FRAMES, DECAY_FRAMES)
+			elseif disarmFrame > gameFrame then --partially disarmed
+				removeEffect(unitID)
+				addUnitID(unitID, partialUnits, partialUnitID, disarmFrame, 0)
+			end
+		end
+	end
+end
+
+function gadget:Initialize()
+	InitReload()
+end
+
+--------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
+-- Save/Load
+
+function gadget:Load(zip)
+	local frameOffset = Spring.GetGameRulesParam("lastSaveGameFrame") or 0
+	for _, unitID in ipairs(Spring.GetAllUnits()) do
+		local disarmFrame = Spring.GetUnitRulesParam(unitID, "disarmframe")
+		if disarmFrame and (disarmFrame - frameOffset > 0) then
+			gadget:UnitDestroyed(unitID) -- Because units are added in gadget:Initialize()
+			Spring.SetUnitRulesParam(unitID, "disarmframe", disarmFrame - frameOffset, LOS_ACCESS)
+		end
+	end
+	InitReload()
 end

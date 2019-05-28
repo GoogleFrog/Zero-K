@@ -1,5 +1,5 @@
 local playerID = Spring.GetMyPlayerID()
-local rank = playerID and select(9, Spring.GetPlayerInfo(playerID))
+local rank = playerID and select(9, Spring.GetPlayerInfo(playerID, false))
 
 -------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
@@ -51,7 +51,7 @@ local GetUnitPosition	= Spring.GetUnitPosition
 local GetMapDrawMode	= Spring.GetMapDrawMode
 local GetMouseState	= Spring.GetMouseState 
 local GetSelectedUnits	= Spring.GetSelectedUnits
-local GetCommandQueue	= Spring.GetCommandQueue
+local spGetUnitCurrentCommand = Spring.GetUnitCurrentCommand
 local GetUnitDefID	= Spring.GetUnitDefID
 local GetUnitHealth	= Spring.GetUnitHealth
 local GetUnitIsBuilding	= Spring.GetUnitIsBuilding
@@ -139,7 +139,7 @@ local tasks = nubtronData.tasks
 local taskOrder = nubtronData.taskOrder
 nubtronData = nil
 
-local common_commands, states_commands, factory_commands, econ_commands, defense_commands, special_commands, globalCommands, overrides, custom_cmd_actions = include("Configs/integral_menu_commands.lua")
+local factory_commands, econ_commands, defense_commands, special_commands = include("Configs/integral_menu_commands.lua")
 
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
@@ -159,11 +159,6 @@ local function remCondition(condition)
 		conditions[condition] = nil
 		CheckState()
 	end
-end
-
-local function GetFirstCommand(unitID)
-	local queue = GetCommandQueue(unitID, 1)
-	return queue and queue[1]
 end
 
 local function testForAnyConditions(conditionsToTest)
@@ -295,20 +290,18 @@ local function CheckAllUnits()
 	end
 
 	-- commander
-	local cmd1 = myCommID and GetFirstCommand(myCommID)
-	if cmd1 then
-		local udBuilding = UnitDefs[-cmd1.id]
+	local cmdID, _, _, cmdParam1 = myCommID and spGetUnitCurrentCommand(myCommID)
+	if cmdID then
+		local udBuilding = UnitDefs[-cmdID]
 		if udBuilding then
 			local buildeeClass = classesByUnit[udBuilding.name]
 			if buildeeClass then
 				setCondition('build' .. buildeeClass)				
 			end
 
-		elseif cmd1.id == CMD_REPAIR then
+		elseif cmdID == CMD_REPAIR then
 			
-			--Spring.Echo('cmd params', cmd1.params[1], cmd1.params[2], cmd1.params[3], cmd1.params[4], cmd1.params[5])
-			--Spring.Echo('cmd options', cmd1.options[1], cmd1.options[2], cmd1.options[3], cmd1.options[4], cmd1.options[5])
-			local repaireeID = cmd1.params[1]
+			local repaireeID = cmdParam1
 			local udRepairee = UnitDefs[GetUnitDefID(repaireeID)]			
 			local repaireeClass = classesByUnit[udRepairee.name]
 
@@ -339,11 +332,11 @@ local function CheckAllUnits()
 	--constructors
 	conditions.guardFac = nil
 	for finUnitID, _ in pairs(finishedUnits['Con']) do
-		local cmd1 = GetFirstCommand(finUnitID)		
-		if cmd1
+		local fCmdID, _, _, fCmdParam1 = spGetUnitCurrentCommand(finUnitID)
+		if fCmdID
 			and (
-				(cmd1.id == CMD_GUARD and cmd1.params[1] == myLabID)
-				or (cmd1.id == CMD_REPAIR and cmd1.params[1] == labBuildingUnitID)
+				   (fCmdID == CMD_GUARD  and fCmdParam1 == myLabID)
+				or (fCmdID == CMD_REPAIR and fCmdParam1 == labBuildingUnitID)
 			)
 		then
 			conditions.guardFac = true
@@ -757,7 +750,7 @@ function widget:Initialize()
 	curStepNum = 1
 
 	myTeamID = Spring.GetLocalTeamID()
-	_, _, _, _, myFaction = Spring.GetTeamInfo(myTeamID)
+	_, _, _, _, myFaction = Spring.GetTeamInfo(myTeamID, false)
 
 	local allUnits = GetAllUnits()
 	for _, unitID in pairs(allUnits) do

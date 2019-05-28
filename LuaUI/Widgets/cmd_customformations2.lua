@@ -2,8 +2,8 @@ function widget:GetInfo()
 	return {
 		name      = "CustomFormations2",
 		desc      = "Allows you to draw a formation line:"..
-					"\n• mouse drag draw various command on ground."..
-					"\n• ALT+Attack draw attack command on the ground.",
+					"\n mouse drag draw various command on ground."..
+					"\n ALT+Attack draw attack command on the ground.",
 		author    = "Niobium, modified by Skasi", -- Based on 'Custom Formations' by jK and gunblob
 		version   = "v3.4", -- With modified dot drawing from v4.3
 		date      = "Mar, 2010",
@@ -20,21 +20,22 @@ VFS.Include("LuaRules/Configs/customcmds.h.lua")
 -- Epic Menu Options
 --------------------------------------------------------------------------------
 
-options_path = 'Settings/Interface/Command Visibility/Formations'
-options_order = { 'drawmode', 'linewidth', 'dotsize' }
+options_path = 'Settings/Interface/Command Visibility'--/Formations'
+options_order = { 'drawmode_v2', 'linewidth', 'dotsize' }
 options = {
-	drawmode = {
+	drawmode_v2 = {
 		name = 'Draw mode',
 		-- desc is not supported here :(
 		-- desc = 'Change the formation display. Formations are drawn by moving the mouse while the mouse button is pressed. Supported commands are Move, Fight, Patrol, Manual attacks, Jump and with the ALT key held down Attack, Set target and Unload.'
 		-- (new) players might not even know about custom formations, so ultimately this should probably be displayed above these options
 		type = 'radioButton',
-		value = 'lines',
+		value = 'both',
 		items={
 			{key='lines', name='Lines only', desc='Draw stippled lines along the drawn formation'},
 			{key='dots', name='Dots only', desc='Draw dots at command locations'},
 			{key='both', name='Draw both', desc='Draw lines and dots'},
 		},
+		noHotkey = true,
 	},
 	
 	linewidth = {
@@ -76,11 +77,14 @@ local lineFadeRate = 2.0
 -- What commands are eligible for custom formations
 local formationCmds = {
 	[CMD.MOVE] = true,
+	[CMD_RAW_MOVE] = true,
 	[CMD.FIGHT] = true,
 	[CMD.ATTACK] = true,
+	[CMD.MANUALFIRE] = true,
 	[CMD.PATROL] = true,
 	[CMD.UNLOAD_UNIT] = true,
 	[CMD_JUMP] = true, -- jump
+	[CMD_PLACE_BEACON] = true, -- teleport beacon
 	[CMD_UNIT_SET_TARGET] = true, -- settarget
 	[CMD_UNIT_SET_TARGET_CIRCLE] = true, -- settarget
 }
@@ -88,6 +92,7 @@ local formationCmds = {
 -- What commands require alt to be held (Must also appear in formationCmds)
 local requiresAlt = {
 	[CMD.ATTACK] = true,
+	[CMD.MANUALFIRE] = true,
 	[CMD.UNLOAD_UNIT] = true,
 	[CMD_UNIT_SET_TARGET] = true, -- settarget
 	[CMD_UNIT_SET_TARGET_CIRCLE] = true, -- settarget
@@ -97,12 +102,13 @@ local requiresAlt = {
 -- If the mouse remains on the same target for both Press/Release then the formation is ignored and original command is issued.
 -- Normal logic will follow after override, i.e. must be a formationCmd to get formation, alt must be held if requiresAlt, etc.
 local overrideCmds = {
-	[CMD.GUARD] = CMD.MOVE,
+	[CMD.GUARD] = CMD_RAW_MOVE,
+	[CMD_WAIT_AT_BEACON] = CMD_RAW_MOVE,
 }
 
 -- What commands are issued at a position or unit/feature ID (Only used by GetUnitPosition)
 local positionCmds = {
-	[CMD.MOVE]=true,		[CMD.ATTACK]=true,		[CMD.RECLAIM]=true,		[CMD.RESTORE]=true,		[CMD.RESURRECT]=true,
+	[CMD.MOVE]=true,		[CMD_RAW_MOVE]=true,	[CMD_RAW_BUILD]=true,	[CMD.ATTACK]=true,		[CMD.RECLAIM]=true,		[CMD.RESTORE]=true,		[CMD.RESURRECT]=true,
 	[CMD.PATROL]=true,		[CMD.CAPTURE]=true,		[CMD.FIGHT]=true, 		[CMD.MANUALFIRE]=true,		[CMD_JUMP]=true, -- jump
 	[CMD.UNLOAD_UNIT]=true,	[CMD.UNLOAD_UNITS]=true,[CMD.LOAD_UNITS]=true,	[CMD.GUARD]=true,		[CMD.AREA_ATTACK] = true,
 }
@@ -164,7 +170,6 @@ local spGiveOrder = Spring.GiveOrder
 local spGetUnitIsTransporting = Spring.GetUnitIsTransporting
 local spGetCommandQueue = Spring.GetCommandQueue
 local spGetUnitPosition = Spring.GetUnitPosition
-local spTraceScreenRay = Spring.TraceScreenRay
 local spGetGroundHeight = Spring.GetGroundHeight
 local spGetFeaturePosition = Spring.GetFeaturePosition
 local spGiveOrderToUnit = Spring.GiveOrderToUnit
@@ -199,11 +204,24 @@ local CMD_OPT_META = CMD.OPT_META
 local CMD_OPT_SHIFT = CMD.OPT_SHIFT
 local CMD_OPT_RIGHT = CMD.OPT_RIGHT
 
+local REMOVED_SET_WANTED_MAX_SPEED = not CMD.SET_WANTED_MAX_SPEED
+
 local keyShift = 304
+
+local filledCircleOutFading = {} --Table of display lists keyed by cmdID
 
 --------------------------------------------------------------------------------
 -- Helper Functions
 --------------------------------------------------------------------------------
+local function CulledTraceScreenRay(mx, my, coords, minimap)
+	local targetType, params = spTraceScreenRay(mx, my, coords, minimap)
+	if targetType == "ground" then
+		params[4], params[5], params[6] = nil, nil, nil
+		return targetType, params
+	end
+	return targetType, params
+end
+
 local function GetModKeys()
 	
 	local alt, ctrl, meta, shift = spGetModKeyState()
@@ -219,6 +237,9 @@ local function GetUnitFinalPosition(uID)
 	local ux, uy, uz = spGetUnitPosition(uID)
 	
 	local cmds = spGetCommandQueue(uID, -1)
+	if not cmds then
+		return 0, 0, 0
+	end
 	for i = #cmds, 1, -1 do
 		
 		local cmd = cmds[i]
@@ -250,12 +271,14 @@ local function GetUnitFinalPosition(uID)
 	return ux, uy, uz
 end
 local function SetColor(cmdID, alpha)
-	if     cmdID == CMD_MOVE       then glColor(0.5, 1.0, 0.5, alpha) -- Green
-	elseif cmdID == CMD_ATTACK     then glColor(1.0, 0.2, 0.2, alpha) -- Red
-	elseif cmdID == CMD_UNLOADUNIT then glColor(1.0, 1.0, 0.0, alpha) -- Yellow
-	elseif cmdID == CMD_UNIT_SET_TARGET then glColor(1, 0.75, 0, alpha) -- Orange
-	elseif cmdID == CMD_UNIT_SET_TARGET_CIRCLE then glColor(1, 0.75, 0, alpha) -- Orange
-	else                                glColor(0.5, 0.5, 1.0, alpha) -- Blue
+	if     cmdID == CMD_MOVE or cmdID == CMD_RAW_MOVE then glColor(0.5, 1.0, 0.5, alpha) -- Green
+	elseif cmdID == CMD_ATTACK                 then glColor(1.0, 0.2, 0.2, alpha) -- Red
+	elseif cmdID == CMD.MANUALFIRE             then glColor(1.0, 1.0, 1.0, alpha) -- White
+	elseif cmdID == CMD_UNLOADUNIT             then glColor(1.0, 1.0, 0.0, alpha) -- Yellow
+	elseif cmdID == CMD_UNIT_SET_TARGET        then glColor(1.0, 0.75, 0.0, alpha) -- Orange
+	elseif cmdID == CMD_UNIT_SET_TARGET_CIRCLE then glColor(1.0, 0.75, 0.0, alpha) -- Orange
+	elseif cmdID == CMD_JUMP                   then glColor(0.2, 1.0, 0.2, alpha) -- Deeper Green
+	else                                            glColor(0.5, 0.5, 1.0, alpha) -- Blue
 	end
 end
 local function CanUnitExecute(uID, cmdID)
@@ -395,6 +418,7 @@ local function GetInterpNodes(mUnits)
 	
 	return interpNodes
 end
+
 local function GetCmdOpts(alt, ctrl, meta, shift, right)
 	
 	local opts = { alt=alt, ctrl=ctrl, meta=meta, shift=shift, right=right }
@@ -422,26 +446,54 @@ local function GiveNonNotifyingOrder(cmdID, cmdParams, cmdOpts)
 end
 
 local function GiveNotifyingOrderToUnit(uID, cmdID, cmdParams, cmdOpts)
-	local widgets = widgetHandler.widgets
-	for i=1, #widgets do
-		local w = widgets[i]
-		if w.UnitCommandNotify and w:UnitCommandNotify(uID, cmdID, cmdParams, cmdOpts) then
-			return
+	if widgetHandler:UnitCommandNotify(uID, cmdID, cmdParams, cmdOpts) then
+		return
+	end
+	spGiveOrderToUnit(uID, cmdID, cmdParams, cmdOpts.coded)
+end
+
+local function SendSetWantedMaxSpeed(alt, ctrl, meta, shift)
+	-- Move Speed (Applicable to every order)
+	local wantedSpeed = 99999 -- High enough to exceed all units speed, but not high enough to cause errors (i.e. vs math.huge)
+	if ctrl then
+		local selUnits = spGetSelectedUnits()
+		for i = 1, #selUnits do
+			local ud = UnitDefs[spGetUnitDefID(selUnits[i])]
+			local uSpeed = ud and ud.speed
+			if uSpeed and uSpeed > 0 and uSpeed < wantedSpeed then
+				wantedSpeed = uSpeed
+			end
 		end
+	elseif REMOVED_SET_WANTED_MAX_SPEED then
+		wantedSpeed = -1
 	end
 	
-	spGiveOrderToUnit(uID, cmdID, cmdParams, cmdOpts.coded)
+	-- Directly giving speed order appears to work perfectly, including with shifted orders ...
+	-- ... But other widgets CMD.INSERT the speed order into the front (Posn 1) of the queue instead (which doesn't work with shifted orders)
+	if REMOVED_SET_WANTED_MAX_SPEED then
+		local units = Spring.GetSelectedUnits()
+		Spring.GiveOrderToUnitArray(units, CMD_WANTED_SPEED, {wantedSpeed}, 0)
+	else
+		local speedOpts = GetCmdOpts(alt, ctrl, meta, shift, true)
+		GiveNotifyingOrder(CMD_SET_WANTED_MAX_SPEED, {wantedSpeed / 30}, speedOpts)
+	end
 end
 
 --------------------------------------------------------------------------------
 -- Mouse/keyboard Callins
 --------------------------------------------------------------------------------
 function widget:MousePress(mx, my, mButton)
-	
-	lineLength = 0
 	-- Where did we click
 	inMinimap = spIsAboveMiniMap(mx, my)
-	if inMinimap and not MiniMapFullProxy then return false end
+	if inMinimap and not MiniMapFullProxy then
+		return false
+	end
+	if (mButton == 1 or mButton == 3) and fNodes and #fNodes > 0 then
+		-- already issuing command
+		return true 
+	end
+	
+	lineLength = 0
 	
 	-- Get command that would've been issued
 	local _, activeCmdID = spGetActiveCommand()
@@ -463,7 +515,7 @@ function widget:MousePress(mx, my, mButton)
 		local overrideCmdID = overrideCmds[defaultCmdID]
 		if overrideCmdID then
 			
-			local targType, targID = spTraceScreenRay(mx, my, false, inMinimap)
+			local targType, targID = CulledTraceScreenRay(mx, my, false, inMinimap)
 			if targType == 'unit' then
 				overriddenCmd = defaultCmdID
 				overriddenTarget = targID
@@ -498,7 +550,7 @@ function widget:MousePress(mx, my, mButton)
 	end
 	
 	-- Get clicked position
-	local _, pos = spTraceScreenRay(mx, my, true, inMinimap)
+	local _, pos = CulledTraceScreenRay(mx, my, true, inMinimap)
 	if not pos then return false end
 	
 	-- Setup formation node array
@@ -510,6 +562,7 @@ function widget:MousePress(mx, my, mButton)
 	-- We handled the mouse press
 	return true
 end
+
 function widget:MouseMove(mx, my, dx, dy, mButton)
 	
 	-- It is possible for MouseMove to fire after MouseRelease
@@ -526,7 +579,7 @@ function widget:MouseMove(mx, my, dx, dy, mButton)
 	end
 	
 	-- Get clicked position
-	local _, pos = spTraceScreenRay(mx, my, true, inMinimap)
+	local _, pos = CulledTraceScreenRay(mx, my, true, inMinimap)
 	if not pos then return false end
 	
 	-- Add the new formation node
@@ -548,6 +601,7 @@ function widget:MouseMove(mx, my, dx, dy, mButton)
 			lastPathPos = pos
 			
 			draggingPath = true
+			SendSetWantedMaxSpeed(alt, ctrl, meta, shift)
 		end
 	else
 		-- Are we dragging a path?
@@ -566,7 +620,33 @@ function widget:MouseMove(mx, my, dx, dy, mButton)
 	
 	return false
 end
+
+local function StopCommandAndRelinquishMouse()
+	local ownerName = widgetHandler.mouseOwner and widgetHandler.mouseOwner.GetInfo and widgetHandler.mouseOwner.GetInfo()
+	ownerName = ownerName and ownerName.name
+	if ownerName == "CustomFormations2" then
+		widgetHandler.mouseOwner = nil
+	end
+	-- Cancel the command
+	fNodes = {}
+	fDists = {}
+	
+	-- Modkeys / command reset
+	local alt, ctrl, meta, shift = GetModKeys()
+	if not usingRMB then
+		if shift then
+			endShift = true -- Reset on release of shift
+		else
+			spSetActiveCommand(0) -- Reset immediately
+		end
+	end
+end
+
 function widget:MouseRelease(mx, my, mButton)
+	if (mButton == 1 or mButton == 3) and (not usingRMB) == (mButton == 3) then
+		StopCommandAndRelinquishMouse()
+		return false
+	end
 	
 	-- It is possible for MouseRelease to fire after MouseRelease
 	if #fNodes == 0 then
@@ -582,7 +662,6 @@ function widget:MouseRelease(mx, my, mButton)
 			spSetActiveCommand(0) -- Reset immediately
 		end
 	end
-	
 	-- Are we going to use the drawn formation?
 	local usingFormation = true
 	
@@ -590,7 +669,7 @@ function widget:MouseRelease(mx, my, mButton)
 	if overriddenCmd then
 		
 		local targetID
-		local targType, targID = spTraceScreenRay(mx, my, false, inMinimap)
+		local targType, targID = CulledTraceScreenRay(mx, my, false, inMinimap)
 		if targType == 'unit' then
 			targetID = targID
 		elseif targType == 'feature' then
@@ -618,7 +697,7 @@ function widget:MouseRelease(mx, my, mButton)
 		
 		-- Add final position (Sometimes we don't get the last MouseMove before this MouseRelease)
 		if (not inMinimap) or spIsAboveMiniMap(mx, my) then
-			local _, pos = spTraceScreenRay(mx, my, true, inMinimap)
+			local _, pos = CulledTraceScreenRay(mx, my, true, inMinimap)
 			if pos then
 				AddFNode(pos)
 			end
@@ -664,23 +743,7 @@ function widget:MouseRelease(mx, my, mButton)
 			end
 		end
 		
-		-- Move Speed (Applicable to every order)
-		local wantedSpeed = 99999 -- High enough to exceed all units speed, but not high enough to cause errors (i.e. vs math.huge)
-		
-		if ctrl then
-			local selUnits = spGetSelectedUnits()
-			for i = 1, #selUnits do
-				local uSpeed = UnitDefs[spGetUnitDefID(selUnits[i])].speed
-				if uSpeed > 0 and uSpeed < wantedSpeed then
-					wantedSpeed = uSpeed
-				end
-			end
-		end
-		
-		-- Directly giving speed order appears to work perfectly, including with shifted orders ...
-		-- ... But other widgets CMD.INSERT the speed order into the front (Posn 1) of the queue instead (which doesn't work with shifted orders)
-		local speedOpts = GetCmdOpts(alt, ctrl, meta, shift, true)
-		GiveNotifyingOrder(CMD_SET_WANTED_MAX_SPEED, {wantedSpeed / 30}, speedOpts)
+		SendSetWantedMaxSpeed(alt, ctrl, meta, shift)
 	end
 	
 	if #fNodes > 1 then
@@ -692,9 +755,14 @@ function widget:MouseRelease(mx, my, mButton)
 	
 	fNodes = {}
 	fDists = {}
-	
+	local ownerName = widgetHandler.mouseOwner and widgetHandler.mouseOwner.GetInfo and widgetHandler.mouseOwner.GetInfo()
+	ownerName = ownerName and ownerName.name
+	if ownerName == "CustomFormations2" then
+		widgetHandler.mouseOwner = nil
+	end
 	return true
 end
+
 function widget:KeyRelease(key)
 	if (key == keyShift) and endShift then
 		spSetActiveCommand(0)
@@ -724,29 +792,38 @@ local function tVertsMinimap(verts)
 	end
 end
 
-local function DrawFilledCircle(pos, size, cornerCount)
-	glPushMatrix()
-	glTranslate(pos[1], pos[2], pos[3])
-	glBeginEnd(GL.TRIANGLE_FAN, function()
-		glVertex(0,0,0)
-		for t = 0, pi2, pi2 / cornerCount do
-			glVertex(sin(t) * size, 0, cos(t) * size)
-		end
-	end)
-	glPopMatrix()
+local function filledCircleVerts(cmd, cornerCount)
+	SetColor(cmd, 1)
+	glVertex(0,0,0)
+	SetColor(cmd, 0)
+	for t = 0, pi2, pi2 / cornerCount do
+		glVertex(sin(t), 0, cos(t))
+	end
 end
+
+-- local function DrawFilledCircle(pos, size, cornerCount)
+-- 	glPushMatrix()
+-- 	glTranslate(pos[1], pos[2], pos[3])
+-- 	glScale(size, 1, size)
+-- 	gl.CallList(filledCircleVerts)
+-- 	glPopMatrix()
+-- end
 
 local function DrawFilledCircleOutFading(pos, size, cornerCount)
 	glPushMatrix()
 	glTranslate(pos[1], pos[2], pos[3])
-	glBeginEnd(GL.TRIANGLE_FAN, function()
-		SetColor(usingCmd, 1)
-		glVertex(0,0,0)
-		SetColor(usingCmd, 0)
-		for t = 0, pi2, pi2 / cornerCount do
-			glVertex(sin(t) * size, 0, cos(t) * size)
-		end
-	end)
+	glScale(size, 1, size)
+	local cmd = usingCmd
+	if filledCircleOutFading[usingCmd] == nil then
+		cmd = 0
+	end
+	gl.CallList(filledCircleOutFading[cmd])
+	-- glBeginEnd(GL.TRIANGLE_FAN, function()
+		-- glVertex(0,0,0)
+		-- for t = 0, pi2, pi2 / cornerCount do
+		-- 	glVertex(sin(t), 0, cos(t))
+		-- end
+	-- end)
 	-- draw extra glow as base
 	-- has hardly any effect but doubles gpuTime, so disabled for now
 	-- glBeginEnd(GL.TRIANGLE_FAN, function()
@@ -823,14 +900,14 @@ function widget:ViewResize(viewSizeX, viewSizeY)
 end
 
 function widget:DrawWorld()
-	-- Draw lines when a path is drawn instead of a formation, OR when drawmode for formations is not "dots" only
-	if pathCandidate or options.drawmode.value ~= "dots" then
+	-- Draw lines when a path is drawn instead of a formation, OR when drawmode_v2 for formations is not "dots" only
+	if pathCandidate or options.drawmode_v2.value ~= "dots" then
 		DrawFormationLines(tVerts, 2)
 	end
-	-- Draw dots when no path is drawn AND nodenumber is high enough AND drawmode for formations is not "lines" only
-	if not pathCandidate and (#fNodes > 1 or #dimmNodes > 1) and options.drawmode.value ~= "lines" then
+	-- Draw dots when no path is drawn AND nodenumber is high enough AND drawmode_v2 for formations is not "lines" only
+	if not pathCandidate and (#fNodes > 1 or #dimmNodes > 1) and options.drawmode_v2.value ~= "lines" then
 		local camX, camY, camZ = spGetCameraPosition()
-		local at, p = spTraceScreenRay(Xs,Ys,true,false,false)
+		local at, p = CulledTraceScreenRay(Xs,Ys,true,false,false)
 		if at == "ground" then 
 			local dx, dy, dz = camX-p[1], camY-p[2], camZ-p[3]
 			--zoomY = ((dx*dx + dy*dy + dz*dz)*0.01)^0.25	--tests show that sqrt(sqrt(x)) is faster than x^0.25
@@ -857,6 +934,23 @@ function widget:DrawInMiniMap()
 		
 		DrawFormationLines(tVertsMinimap, 1)
 	glPopMatrix()
+end
+
+function InitFilledCircle(cmdID)
+	filledCircleOutFading[cmdID] = gl.CreateList(gl.BeginEnd, GL.TRIANGLE_FAN, filledCircleVerts, cmdID, 8) 
+end
+
+function widget:Initialize()
+	-- filledCircle = gl.CreateList(gl.BeginEnd, GL.TRIANGLE_FAN, filledCircleVerts, 8)
+	InitFilledCircle(CMD_MOVE)
+	InitFilledCircle(CMD_RAW_MOVE)
+	InitFilledCircle(CMD_ATTACK)
+	InitFilledCircle(CMD.MANUALFIRE)
+	InitFilledCircle(CMD_UNLOADUNIT)
+	InitFilledCircle(CMD_UNIT_SET_TARGET)
+	InitFilledCircle(CMD_UNIT_SET_TARGET_CIRCLE)
+	InitFilledCircle(CMD_JUMP)
+	InitFilledCircle(0)
 end
 
 function widget:Update(deltaTime)

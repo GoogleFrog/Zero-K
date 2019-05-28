@@ -1,7 +1,7 @@
 local widgetName = "Automatic Tip Dispenser"
 
 local playerID = Spring.GetMyPlayerID()
-local rank = playerID and select(9, Spring.GetPlayerInfo(playerID))
+local rank = playerID and select(9, Spring.GetPlayerInfo(playerID, false))
 
 function widget:GetInfo()
 	return {
@@ -125,8 +125,9 @@ local function MakePlural(str)
 end
 
 local function WriteString(str, unitDef, plural)
-	local name = (type(unitDef) == "number") and UnitDefs[unitDef].humanName or UnitDefNames[unitDef].humanName 
-	if plural then name = MakePlural(name) end
+	local def = (type(unitDef) == "number") and UnitDefs[unitDef] or UnitDefNames[unitDef]
+	local name = Spring.Utilities.GetHumanName(def)
+	if plural then name = MakePlural(name) end -- todo: use i18n for plurals
 	return string.gsub(str, "<name>", name, 1)
 end
 
@@ -242,7 +243,7 @@ local function GetTipsList()
 	
 	-- Beginning: Getting commander) to build the first fac
 	elseif CountMy(energy) >= 3 and CountMy(mex)>= 1 and CountMy(factory) == 0 and spGetGameSeconds() < 60 then
-		AddTip("Use your commander to make a factory. The Shield Bot Factory is a good choice for beginners.\nYour first factory is \255\255\64\0FREE\008.", 1, 5)
+		AddTip("Use your commander to make a factory. The Shieldbot Factory is a good choice for beginners.\nYour first factory is \255\255\64\0FREE\008.", 1, 5)
 
 		-- Once the player has started getting stuff done
 	else
@@ -375,7 +376,7 @@ function widget:Update(dt)
 end
 
 --tells people not to build the expensive stuff early
-function widget:UnitCommand(unitID, unitDefID, unitTeam, cmdID, cmdOpts, cmdParams)
+function widget:UnitCommand(unitID, unitDefID, unitTeam, cmdID, cmdParams, cmdOptions)
 	if unitTeam ~= myTeam then return end
 	local t = Spring.GetGameSeconds()
 	local str
@@ -401,7 +402,7 @@ function widget:UnitEnteredLos(unitID, unitTeam)
 		if unitDef.canFly and not airSpotted then
 			SetTip(stringAirSpotted)
 			airSpotted = true
-		elseif unitDef.name == "corsilo" and not nukeSpotted then
+		elseif unitDef.name == "staticnuke" and not nukeSpotted then
 			SetTip(stringNukeSpotted)
 			nukeSpotted = true			
 		end
@@ -409,7 +410,7 @@ function widget:UnitEnteredLos(unitID, unitTeam)
 end
 
 function widget:Initialize()
-	if VFS.FileExists("LuaRules/Gadgets/mission.lua") then
+	if VFS.FileExists("mission.lua") then
 		widgetHandler:RemoveWidget()	-- no need for tips in mission
 	end
 	

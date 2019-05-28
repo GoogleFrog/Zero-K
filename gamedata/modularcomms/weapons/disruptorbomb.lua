@@ -11,13 +11,18 @@ local weaponDef = {
 	customParams            = {
 		slot = [[3]],
 		--timeslow_preset       = [[module_disruptorbomb]],
-		timeslow_damagefactor = [[5]],
+		timeslow_damagefactor = [[6]],
 		muzzleEffectFire = [[custom:RAIDMUZZLE]],
+		manualfire = 1,
+		nofriendlyfire = "needs hax",
+
+		light_camera_height = 2500,
+		light_color = [[1.5 0.75 1.8]],
+		light_radius = 280,
 	},
 
 	damage                  = {
 		default = 350,
-		planes  = 350,
 		subs    = 17.5,
 	},
 
@@ -29,9 +34,9 @@ local weaponDef = {
 	interceptedByShieldType = 2,
 	model                   = [[wep_b_fabby.s3o]],
 	range                   = 450,
-	reloadtime              = 12,
+	reloadtime              = 25,
 	smokeTrail              = true,
-	soundHit                = [[weapon/aoe_aura]],
+    soundHit                = [[weapon/laser/disrupter_explosion]],
 	soundHitVolume          = 8,
 	soundStart              = [[weapon/cannon/cannon_fire3]],
 	--startVelocity           = 350,

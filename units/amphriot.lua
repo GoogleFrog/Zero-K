@@ -1,28 +1,24 @@
 unitDef = {
   unitname               = [[amphriot]],
   name                   = [[Scallop]],
-  description            = [[Amphibious Riot Bot]],
+  description            = [[Amphibious Riot Bot (Anti-Sub)]],
   acceleration           = 0.18,
   activateWhenBuilt      = true,
   brakeRate              = 0.375,
-  buildCostEnergy        = 280,
   buildCostMetal         = 280,
   buildPic               = [[amphriot.png]],
-  buildTime              = 280,
-  canAttack              = true,
   canGuard               = true,
   canMove                = true,
   canPatrol              = true,
-  canstop                = true,
   category               = [[LAND SINK]],
+  selectionVolumeOffsets = [[0 0 0]],
+  selectionVolumeScales  = [[30 30 30]],
+  selectionVolumeType    = [[ellipsoid]],
   corpse                 = [[DEAD]],
 
   customParams           = {
     amph_regen = 10,
     amph_submerged_at = 40,
-    description_pl = [[Amfibijny bot wsparcia]],
-    helptext       = [[A typical riot unit, the Scallop is armed with impact explosives for underwater use and a quadruple shotgun when on land.]],
-    helptext_pl    = [[Scallop to wszechstronna jednostka, ktora oprocz podwodnych pociskow ma takze shotgun do walk na ladzie.]],
   },
 
   explodeAs              = [[BIG_UNITEX]],
@@ -40,7 +36,6 @@ unitDef = {
   noChaseCategory        = [[TERRAFORM FIXEDWING GUNSHIP HOVER]],
   objectName             = [[amphriot.s3o]],
   script                 = [[amphriot.lua]],
-  seismicSignature       = 4,
   selfDestructAs         = [[BIG_UNITEX]],
 
   sfxtypes               = {
@@ -51,7 +46,7 @@ unitDef = {
   },
 
   sightDistance          = 430,
-  sonarDistance          = 350,
+  sonarDistance          = 430,
   trackOffset            = 0,
   trackStrength          = 8,
   trackStretch           = 1,
@@ -91,7 +86,7 @@ unitDef = {
       collideFriendly         = false,
       craterBoost             = 0,
       craterMult              = 0,
-
+	  
       damage                  = {
         default = 90.1,
       },
@@ -114,7 +109,7 @@ unitDef = {
       --soundStart            = [[weapon/torpedo]],
       startVelocity           = 90,
       tracks                  = true,
-      turnRate                = 14000,
+      turnRate                = 30000,
       turret                  = true,
       waterWeapon             = true,
       weaponAcceleration      = 300,
@@ -130,6 +125,12 @@ unitDef = {
       coreThickness           = 0.5,
       craterBoost             = 0,
       craterMult              = 0,
+
+      customParams            = {
+		light_camera_height = 2000,
+		light_color = [[0.3 0.3 0.05]],
+		light_radius = 120,
+      },
 
       damage                  = {
         default = 26,
@@ -152,7 +153,6 @@ unitDef = {
       soundStartVolume	      = 0.5,
       soundTrigger            = true,
       sprayangle              = 1500,
-      targetMoveError         = 0,
       thickness               = 2,
       tolerance               = 10000,
       turret                  = true,
@@ -164,30 +164,18 @@ unitDef = {
   featureDefs            = {
 
     DEAD      = {
-      description      = [[Wreckage - Scallop]],
       blocking         = true,
-      damage           = 1100,
-      energy           = 0,
       featureDead      = [[HEAP]],
       footprintX       = 3,
       footprintZ       = 3,
-      metal            = 112,
       object           = [[amphriot_wreck.s3o]],
-      reclaimable      = true,
-      reclaimTime      = 112,
     },
 
     HEAP      = {
-      description      = [[Debris - Scallop]],
       blocking         = false,
-      damage           = 1100,
-      energy           = 0,
       footprintX       = 2,
       footprintZ       = 2,
-      metal            = 56,
       object           = [[debris2x2c.s3o]],
-      reclaimable      = true,
-      reclaimTime      = 56,
     },
 
   },

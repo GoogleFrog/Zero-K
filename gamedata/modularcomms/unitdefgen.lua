@@ -30,83 +30,103 @@ Spring.Log = Spring.Log or function() end
 --	Weapon 6: unused
 --------------------------------------------------------------------------------
 
+VFS.Include("gamedata/modularcomms/moduledefs.lua")
+
+VFS.Include("gamedata/modularcomms/dyncomm_chassis_generator.lua")
 VFS.Include("gamedata/modularcomms/clonedefs.lua")
 
+local legacyTranslators = VFS.Include("gamedata/modularcomms/legacySiteDataTranslate.lua")
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
 
-VFS.Include("gamedata/modularcomms/moduledefs.lua")
 
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
 -- for examples see testdata.lua
 
 local modOptions = (Spring and Spring.GetModOptions and Spring.GetModOptions()) or {}
-local err, success
+local commData
 
-local commDataRaw = modOptions.commandertypes
-local commDataFunc, commData
-
-if not (commDataRaw and type(commDataRaw) == 'string') then
-	err = "Comm data entry in modoption is empty or in invalid format"
-	commData = {}
-else
-	commDataRaw = string.gsub(commDataRaw, '_', '=')
-	commDataRaw = Spring.Utilities.Base64Decode(commDataRaw)
-	--Spring.Echo(commDataRaw)
-	commDataFunc, err = loadstring("return "..commDataRaw)
+local function DecodeBase64CommData(toDecode, useLegacyTranslator)
+	local commDataTable
+	local commDataFunc
+	local err, success
+	
+	if not (toDecode and type(toDecode) == 'string') then
+		err = "Attempt to decode empty or invalid comm data"
+		return {}
+	end
+	
+	toDecode = string.gsub(toDecode, '_', '=')
+	toDecode = Spring.Utilities.Base64Decode(toDecode)
+	--Spring.Echo(toDecode)
+	commDataFunc, err = loadstring("return "..toDecode)
 	if commDataFunc then
-		success, commData = pcall(commDataFunc)
+		success, commDataTable = pcall(commDataFunc)
 		if not success then	-- execute Borat
-			err = commData
-			commData = {}
+			err = commDataTable
+			commDataTable = {}
+		elseif useLegacyTranslator then
+			commDataTable = legacyTranslators.FixOverheadIcon(commDataTable)
 		end
+	else
+		commDataTable = {}
+	end
+	if err then 
+		Spring.Log("gamedata/modularcomms/unitdefgen.lua", "warning", 'Modular Comms warning: ' .. err)
+	end
+	return commDataTable
+end
+
+do
+	commData = DecodeBase64CommData(modOptions.commandertypes, true)
+	local commDataPredefined = VFS.Include("gamedata/modularcomms/dyncomms_predefined.lua")
+	commData = MergeTable(commData, commDataPredefined)
+end
+
+for commProfileID, commProfile in pairs(commData) do
+	-- MAKE SURE THIS MATCHES api_modularcomms
+	commProfile.baseUnitName = commProfileID .. "_base"
+end
+
+local legacyToDyncommChassisMap = legacyTranslators.legacyToDyncommChassisMap
+
+local function GenerateLevel0DyncommsAndWrecks()
+	for commProfileID, commProfile in pairs(commData) do
+		Spring.Log("gamedata/modularcomms/unitdefgen.lua", "debug", "\tModularComms: Generating base dyncomm for " .. commProfile.name)
+		local unitName = commProfile.baseUnitName
+		
+		local chassis = commProfile.chassis
+		local mappedChassis = legacyToDyncommChassisMap[chassis] or "assault"
+		if mappedChassis then
+			chassis = mappedChassis
+		end
+		
+		UnitDefs[unitName] = CopyTable(UnitDefs["dyn" .. chassis .. "1"], true)
+		local ud = UnitDefs[unitName]
+		ud.name = commProfile.name
+		if commProfile.notStarter then
+			ud.customparams = ud.customparams or {}
+			ud.customparams.not_starter = 1
+		end
+		
+		local features = ud.featuredefs or {}
+		for featureName,array in pairs(features) do
+			local mult = 0.4
+			local typeName = "Wreckage"
+			if featureName == "heap" then
+				typeName = "Debris"
+				mult = 0.2 
+			end
+			array.description = typeName .. " - " .. commProfile.name
+			array.customparams = array.customparams or {}
+			array.customparams.unit = unitName
+		end
+		ud.featuredefs = features
 	end
 end
-if err then 
-	Spring.Log("gamedata/modularcomms/unitdefgen.lua", "warning", 'Modular Comms warning: ' .. err)
-end
 
-if not commData then commData = {} end
-
---------------------------------------------------------------------------------
---------------------------------------------------------------------------------
--- generate the baseline comm
--- identical to SP strike comm except it costs 1250
-
-local function GenerateBasicComm()
-	UnitDefs.commbasic = CopyTable(UnitDefs.armcom1, true)
-	local def = UnitDefs.commbasic
-	def.unitname = "commbasic"
-	def.name = "Commander Junior"
-	def.description = "Basic Commander, Builds at 10 m/s"
-	def.buildcostmetal = 1250
-	def.buildcostenergy = 1250
-	def.buildtime = 1250
-
-	--RemoveWeapons(def)
-	--ApplyWeapon(def, "commweapon_sonicgun")
-
-	def.customparams.helptext = "The Commander Junior is a basic version of the popular Strike Commander platform, issued to new commanders. "
-			            .."While lacking the glory of its customizable brethren, the Commander Jr. remains an effective tool with full base-building and combat capabilites."
-
-	def.customparams.description_pl = "Podstawowy Dowodca, moc 10 m/s"
-	def.customparams.helptext_pl    = "Junior to podstawowa wersja Dowodcy Strike; jest wydawany nowym dowodcom. Mimo ze nie mozna go modyfikowac, Junior pozostaje efektywny w budowaniu i walce."
-
-	for featureName,array in pairs(def.featuredefs) do
-		local mult = 0.4
-		local typeName = "Wreckage"
-		if featureName == "heap" then
-			typeName = "Debris"
-			mult = 0.2 
-		end
-		array.description = typeName .. " - Commander Junior"
-		array.metal = 1250 * mult
-		array.reclaimtime = 1250 * mult
-	end
-end
-
-GenerateBasicComm()
+GenerateLevel0DyncommsAndWrecks()
 
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
@@ -134,7 +154,6 @@ commDefs = {}	--holds precedurally generated comm defs
 local function ProcessComm(name, config)
 	if config.chassis and UnitDefs[config.chassis] then
 		Spring.Log("gamedata/modularcomms/unitdefgen.lua", "debug", "\tModularComms: Processing comm: " .. name)
-		local name = name
 		commDefs[name] = CopyTable(UnitDefs[config.chassis], true)
 		commDefs[name].customparams = commDefs[name].customparams or {}
 		local cp = commDefs[name].customparams
@@ -146,9 +165,6 @@ local function ProcessComm(name, config)
 		end
 		if config.description then
 			commDefs[name].description = config.description
-		end
-		if config.helptext then
-			commDefs[name].customparams.helptext = config.helptext
 		end
 		
 		-- store base values
@@ -166,8 +182,6 @@ local function ProcessComm(name, config)
 			speed = 0,
 			reload = 0,
 		}
-		
-		RemoveWeapons(commDefs[name])
 		
 		-- process modules
 		if config.modules then
@@ -223,10 +237,16 @@ local function ProcessComm(name, config)
 		
 		-- set costs
 		config.cost = config.cost or 0
-		commDefs[name].buildcostmetal = commDefs[name].buildcostmetal + config.cost
-		commDefs[name].buildcostenergy = commDefs[name].buildcostenergy + config.cost
-		commDefs[name].buildtime = commDefs[name].buildtime + config.cost
+		-- a bit less of a hack
+		local commDefsCost = math.max(commDefs[name].buildcostmetal or 0, commDefs[name].buildcostenergy or 0, commDefs[name].buildtime or 0)  --one of these should be set in actual unitdef file
+		commDefs[name].buildcostmetal = commDefsCost + config.cost
+		commDefs[name].buildcostenergy = commDefsCost + config.cost
+		commDefs[name].buildtime = commDefsCost + config.cost
 		cp.cost = config.cost
+		
+		if config.power then
+			commDefs[name].power = config.power
+		end
 		
 		-- morph
 		if config.morphto then
@@ -256,13 +276,9 @@ local function ProcessComm(name, config)
 		
 		-- apply misc. defs
 		if config.miscDefs then
-			commDefs[name] = MergeTable(commDefs[name], config.miscDefs, true)
+			commDefs[name] = MergeTable(config.miscDefs, commDefs[name], true)
 		end
 	end
-end
-
-for name, config in pairs(commData) do
-	ProcessComm(name, config)
 end
 
 --stress test: try every possible module to make sure it doesn't crash
@@ -293,7 +309,13 @@ end
 
 -- for use by AI, in missions, etc.
 local staticComms = VFS.Include("gamedata/modularcomms/staticcomms.lua")
-for name,data in pairs(staticComms) do
+local staticComms2 = VFS.Include("gamedata/modularcomms/staticcomms_mission.lua")
+local staticComms3 = DecodeBase64CommData(modOptions.campaign_commanders)
+
+local staticCommsMerged = MergeTable(staticComms2, staticComms, true)
+staticCommsMerged = MergeTable(staticCommsMerged, staticComms3, true)
+
+for name,data in pairs(staticCommsMerged) do
 	ProcessComm(name, data)
 end
 
@@ -313,6 +335,7 @@ for name, data in pairs(commDefs) do
 	-- apply intrinsic bonuses
 	local damBonus = data.customparams.damagebonus or 0
 	ModifyWeaponDamage(data, damBonus, true)
+	
 	local rangeBonus =  data.customparams.rangebonus or 0
 	ModifyWeaponRange(data, rangeBonus, true)
 
@@ -324,7 +347,7 @@ for name, data in pairs(commDefs) do
 	-- calc lightning real damage based on para damage
 	-- TODO: use for slow-beams
 	if data.weapondefs then
-		for name, weaponData in pairs(data.weapondefs) do
+		for wName, weaponData in pairs(data.weapondefs) do
 			if (weaponData.customparams or {}).extra_damage_mult then
 				weaponData.customparams.extra_damage = weaponData.customparams.extra_damage_mult * weaponData.damage.default
 				weaponData.customparams.extra_damage_mult = nil
@@ -333,7 +356,7 @@ for name, data in pairs(commDefs) do
 	end	
 	
 	-- set weapon1 range	- may need exception list in future depending on what weapons we add
-	if data.weapondefs then
+	if data.weapondefs and not data.customparams.dynamic_comm then
 		local maxRange = 0
 		local weaponRanges = {}
 		local weaponNames = {}
@@ -344,21 +367,21 @@ for name, data in pairs(commDefs) do
 				weaponNames[string.lower(weaponData.def)] = true
 			end
 		end
-		for name, weaponData in pairs(data.weapondefs) do
-			if weaponNames[name] and not (string.lower(weaponData.name):find('fake')) and not weaponData.commandfire then
+		for wName, weaponData in pairs(data.weapondefs) do
+			if weaponNames[wName] and not (string.lower(weaponData.name):find('fake')) and not weaponData.commandfire then
 				if (weaponData.range or 0) > maxRange then
-					maxRange = weaponData.range 
+					maxRange = weaponData.range
 				end
-				weaponRanges[name] = weaponData.range 
+				weaponRanges[wName] = weaponData.range
 			end
 		end
 		-- lame-ass hack, because the obvious methods don't work
-		for name, weaponData in pairs(data.weapondefs) do
+		for wName, weaponData in pairs(data.weapondefs) do
 			if string.lower(weaponData.name):find('fake') then
 				weaponData.range = maxRange
 			end
 		end
-		for name, range in pairs(weaponRanges) do -- only works for 2 weapons max
+		for wName, range in pairs(weaponRanges) do -- only works for 2 weapons max
 			if maxRange ~= range then
 				data.customparams.extradrawrange = range
 			end 
@@ -382,13 +405,9 @@ for name, data in pairs(commDefs) do
 		array.customparams.unit = data.unitname
 	end
 	
-	-- set mass
-	data.mass = ((data.buildtime/2 + data.maxdamage/10)^0.55)*9
-	--Spring.Echo("mass " .. (data.mass or "nil") .. " BT/HP " .. (data.buildtime or "nil") .. "  " .. (data.maxdamage or "nil"))
-	
 	-- rez speed
 	if data.canresurrect then 
-		data.resurrectspeed = data.workertime*0.8
+		data.resurrectspeed = data.workertime*0.5
 	end
 	
 	-- make sure weapons can hit their max range

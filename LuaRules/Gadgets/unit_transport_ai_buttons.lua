@@ -35,7 +35,6 @@ local CMD_ONOFF         = CMD.ONOFF;
 local CMD_REPEAT        = CMD.REPEAT;
 local CMD_MOVE_STATE    = CMD.MOVE_STATE;
 local CMD_FIRE_STATE    = CMD.FIRE_STATE;
-local CMD_ONOFF         = CMD.ONOFF
 
 local gaiaID = Spring.GetGaiaTeamID();
 
@@ -78,23 +77,11 @@ local transportToCmdDesc = {
 }
 
 local transDefs = {
-  [ UnitDefNames['corvalk'].id ] = true,
-  [ UnitDefNames['corbtrans'].id ] = true,
-}
-
-local factDefs = {
-  [ UnitDefNames['factorycloak'].id ] = true,
-  [ UnitDefNames['factoryshield'].id ] = true,
-  [ UnitDefNames['factoryspider'].id ] = true,
-  [ UnitDefNames['factoryjump'].id ] = true,
-  [ UnitDefNames['factoryhover'].id ] = true,
-  [ UnitDefNames['factoryveh'].id ] = true,
-  [ UnitDefNames['factorytank'].id ] = true,
-  [ UnitDefNames['factoryamph'].id ] = true,
+  [ UnitDefNames['gunshiptrans'].id ] = true,
+  [ UnitDefNames['gunshipheavytrans'].id ] = true,
 }
 
 local hasTransports = {}
-
 
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
@@ -108,11 +95,17 @@ end
 
 local function RemoveCmdDesc(unitID)
   local cmdEmbarkID = FindUnitCmdDesc(unitID, CMD_EMBARK)
-  RemoveUnitCmdDesc(unitID, cmdEmbarkID);
+  if cmdTransportToID then
+    RemoveUnitCmdDesc(unitID, cmdTransportToID);
+  end
   local cmdDisembarkID = FindUnitCmdDesc(unitID, CMD_DISEMBARK)
-  RemoveUnitCmdDesc(unitID, cmdDisembarkID);
+  if cmdDisembarkID then
+    RemoveUnitCmdDesc(unitID, cmdDisembarkID);
+  end
   local cmdTransportToID = FindUnitCmdDesc(unitID, CMD_TRANSPORTTO)
-  RemoveUnitCmdDesc(unitID, cmdTransportToID);  
+  if cmdTransportToID then
+    RemoveUnitCmdDesc(unitID, cmdTransportToID);
+  end
 end
 
 --------------------------------------------------------------------------------
@@ -122,18 +115,18 @@ function IsTransportable(unitDefID)
   ud = UnitDefs[unitDefID]
   if (ud == nil) then return false end
   udc = ud.springCategories
-  return (udc~= nil and ud.speed > 0 and not ud.canFly)
+  return udc~= nil and ud.isGroundUnit and not ud.cantBeTransported
 end
 
 
 function gadget:UnitCreated(unitID, unitDefID, teamID)
   if (hasTransports[teamID]) then 
-    if (IsTransportable(unitDefID) or factDefs[unitDefID]) then AddCmdDesc(unitID) end
+    if IsTransportable(unitDefID)  then AddCmdDesc(unitID) end
   elseif (transDefs[unitDefID]) then
     hasTransports[teamID] = true
     for _, id in pairs(GetTeamUnits(teamID)) do
       local def = GetUnitDefID(id)
-      if (IsTransportable(def) or factDefs[def]) then AddCmdDesc(id) end
+      if IsTransportable(def) then AddCmdDesc(id) end
     end
   end
 end
@@ -153,7 +146,7 @@ function gadget:UnitDestroyed(unitID, unitDefID, teamID, attackerID, attackerDef
 			hasTransports[teamID] = false
 			for _, id in pairs(teamUnit) do
 				local def = GetUnitDefID(id)
-				if (IsTransportable(def) or factDefs[def]) then RemoveCmdDesc(id) end
+				if IsTransportable(def) then RemoveCmdDesc(id) end
 			end
 		end
 	end
@@ -167,7 +160,7 @@ end
 
 
 function gadget:UnitGiven(unitID) -- minor hack unrelated to transport ai - enable captured unit
-    GiveOrderToUnit(unitID, CMD_ONOFF, { 1 }, { })
+    GiveOrderToUnit(unitID, CMD_ONOFF, { 1 }, 0)
 end
 
 
@@ -200,19 +193,25 @@ end
 
 function gadget:AllowCommand(unitID, unitDefID, teamID, cmdID, cmdParams, cmdOptions)
   if (cmdID == CMD_EMBARK) or (cmdID == CMD_DISEMBARK) or (cmdID == CMD_TRANSPORTTO) then
-	if cmdID == CMD_TRANSPORTTO and (cmdOptions.shift) then	return true end --transportTo cannot properly support queue, block when in SHIFT
-    local opt = {"alt"}
-	local embark =true
+	if cmdID == CMD_TRANSPORTTO and (cmdOptions.shift) then
+		return true --transportTo cannot properly support queue, block when in SHIFT
+	end
+    local opt = CMD.OPT_ALT
+	local embark = true
     if (cmdID == CMD_DISEMBARK and cmdOptions.shift) then 
-		opt[#opt+1] = "ctrl"  --Note: Disembark only when in SHIFT mode ("ctrl" is used to mark disembark point)
+		opt = opt + CMD.OPT_CTRL  --Note: Disembark only when in SHIFT mode (ctrl is used to mark disembark point)
 		embark = false --prevent enter into priority queue
 	end
-	if (cmdOptions.shift) then opt[#opt+1] = "shift" end
-	if cmdID == CMD_TRANSPORTTO then --only CMD_TRANSPORTTO have coordinate parameter.
-		GiveOrderToUnit(unitID, CMD.MOVE, {cmdParams[1],cmdParams[2],cmdParams[3]}, opt) -- This move command determine transport_AI destination.
+	if (cmdOptions.shift) then
+		opt = opt + CMD.OPT_SHIFT
 	end
-	GiveOrderToUnit(unitID, CMD_WAIT, {}, opt) --Note: transport AI use CMD_WAIT to identify transport unit. "Ctrl" will flag enter/exit transport point.
-	SendToUnsynced("taiEmbark", unitID, teamID, embark, cmdOptions.shift) --this will put unit into transport_AI's priority (see: unit_transport_ai.lua)
+	if cmdID == CMD_TRANSPORTTO then --only CMD_TRANSPORTTO have coordinate parameter.
+		GiveOrderToUnit(unitID, CMD_RAW_MOVE, {cmdParams[1],cmdParams[2],cmdParams[3]}, opt) -- This move command determine transport_AI destination.
+	end
+	if not embark then
+		GiveOrderToUnit(unitID, CMD_WAIT, {}, opt) --Note: transport AI use CMD_WAIT to identify transport unit. "Ctrl" will flag enter/exit transport point.
+	end
+	SendToUnsynced("taiEmbark", unitID, teamID, embark, cmdOptions.shift, cmdOptions.alt) --this will put unit into transport_AI's priority (see: unit_transport_ai.lua)
     return false
   end
   return true
@@ -227,14 +226,14 @@ else
 --  «UNSYNCED»  ----------------------------------------------------------------
 --------------------------------------------------------------------------------
 
-function WrapToLuaUI(_,unitID,teamID, embark, shift)
-  if (Script.LuaUI('taiEmbark')) then
-    Script.LuaUI.taiEmbark(unitID,teamID, embark, shift)
-  end
+function WrapToLuaUI(_,unitID,teamID, embark, shift, internal)
+	if (Script.LuaUI('taiEmbark')) and teamID == Spring.GetMyTeamID() then
+		Script.LuaUI.taiEmbark(unitID,teamID, embark, shift, internal)
+	end
 end
 
 function gadget:Initialize()
-  gadgetHandler:AddSyncAction('taiEmbark',WrapToLuaUI)
+	gadgetHandler:AddSyncAction('taiEmbark',WrapToLuaUI)
 end
 
 --------------------------------------------------------------------------------

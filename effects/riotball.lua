@@ -20,6 +20,7 @@ return {
       count              = 1,
       ground             = true,
       water              = true,
+      underwater         = true,
       properties = {
         alpha              = 0.6,
         color              = [[0.3,0,0.4]],
@@ -33,6 +34,7 @@ return {
       count              = 1,
       ground             = true,
       water              = true,
+      underwater         = true,
       properties = {
         colormap           = [[1 0.7 0.2 0.01    1 0.7 0.2 0.01    0 0 0 0.01]],
         directional        = true,
@@ -75,6 +77,7 @@ return {
       count              = 1,
       ground             = true,
       water              = true,
+      underwater         = true,
       properties = {
         alpha              = 0.5,
         color              = [[1,0,1]],
@@ -105,6 +108,7 @@ return {
       count              = 1,
       ground             = true,
       water              = true,
+      underwater         = true,
       properties = {
         alpha              = 0.6,
         color              = [[0.15,0,0.2]],
@@ -117,6 +121,7 @@ return {
       class              = [[CBitmapMuzzleFlame]],
       ground             = true,
       water              = true,
+      underwater         = true,
       properties = {
         colormap           = [[0.3 0 0.4 .1   .15 0 0.2 .1   0 0 0 0]],
         dir                = [[-1 r1, 1, -1 r1]],
@@ -153,6 +158,7 @@ return {
       count              = 1,
       ground             = true,
       water              = true,
+      underwater         = true,
       properties = {
         alpha              = 0.5,
         color              = [[0,1,1]],
@@ -183,6 +189,7 @@ return {
       count              = 1,
       ground             = true,
       water              = true,
+      underwater         = true,
       properties = {
         alpha              = 0.5,
         color              = [[1,0,1]],
@@ -192,12 +199,46 @@ return {
     },
   },
   
+    
+  ["riotballplus2_purple_limpet"] = {
+    usedefaultexplosions = false,
+	
+	groundflash = {
+      circlealpha        = 1,
+      circlegrowth       = 12,
+      flashalpha         = 2.15,
+      flashsize          = 68,
+      ttl                = 6,
+      color = {
+        [1]  = 1,
+        [2]  = 0.89999997615814,
+        [3]  = 0.60000002384186,
+      },
+    },
+    sphere = {
+      air                = true,
+      class              = [[CSpherePartSpawner]],
+      count              = 1,
+      ground             = true,
+      water              = true,
+      underwater 		 = true,
+      properties = {
+        alpha              = 0.5,
+        color              = [[1,0,1]],
+        expansionspeed     = 12,
+        ttl                = 22,
+      },
+    },
+	
+  },
+  
   ["riotballgrav"] = {
     usedefaultexplosions = false,
     groundflash = {
       air = true,
       ground = true,
       water = true,
+      underwater = true,
       unit = true,
       alwaysvisible      = true,
       circlealpha        = 0.4,
@@ -216,6 +257,7 @@ return {
       class              = [[CBitmapMuzzleFlame]],
       ground             = true,
       water              = true,
+      underwater         = true,
       count              = 5,
       properties = {
         colormap           = [[0.1 0.15 0.4 .1   .05 0.075 0.2 .1   0 0 0 0]],

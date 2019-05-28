@@ -3,7 +3,7 @@ local versionNumber = "v0.1"
 function gadget:GetInfo()
   return {
     name      = "AA overkill control",
-    desc      = versionNumber .. " Managed Allowed Weapon Target for Defender, Hacksaw, Chainsaw and Screamer to prevent overkill",
+    desc      = versionNumber .. " Managed Allowed Weapon Target for Defender, Hacksaw, Chainsaw and Artemis to prevent overkill",
     author    = "Jseah",
     date      = "03/05/13",
     license   = "GNU GPL, v2 or later",
@@ -41,12 +41,12 @@ local airtargets         = {} -- {id = unitID, incoming = {shotID}, receivingdam
 
 local shot               = {} -- {id = shotID, unitID = ownerunitID, target = targetunitID, damage = int)
 
-local AAunittypes        = {["corrl"] = 1, ["missiletower"] = 1, ["armcir"] = 1, ["screamer"] = 1} -- number = shot damage
+local AAunittypes        = {["turretmissile"] = 1, ["turretaaclose"] = 1, ["turretaafar"] = 1, ["turretaaheavy"] = 1} -- number = shot damage
 local IsAA = {
-	[UnitDefNames.corrl.id] = true, 
-	[UnitDefNames.missiletower.id] = true, 
-	[UnitDefNames.armcir.id] = true, 
-	[UnitDefNames.screamer.id] = true
+	[UnitDefNames.turretmissile.id] = true, 
+	[UnitDefNames.turretaaclose.id] = true, 
+	[UnitDefNames.turretaafar.id] = true, 
+	[UnitDefNames.turretaaheavy.id] = true
 }
 
 local Isair = {}

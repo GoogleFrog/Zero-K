@@ -17,12 +17,12 @@ function scoutHandler.CreateScoutHandler(scoutHeatmap)
 
 	local scoutList = UnitListHandler.CreateUnitList()
 
-	function RunJobHandler()
+	local function RunJobHandler()
 		if scoutHeatmap.IsScoutingRequired() then
 			for unitID,_ in scoutList.Iterator() do
-				local cQueue = spGetCommandQueue(unitID, 1)
-				if cQueue then
-					if #cQueue == 0 then
+				local queueSize = spGetCommandQueue(unitID, 0)
+				if queueSize then
+					if queueSize == 0 then
 						GiveClampedOrderToUnit(unitID, CMD_FIGHT, scoutHeatmap.GetPositionToScount(), {})
 					end
 				else
@@ -36,6 +36,7 @@ function scoutHandler.CreateScoutHandler(scoutHeatmap)
 		AddUnit = scoutList.AddUnit,
 		RemoveUnit = scoutList.RemoveUnit,
 		GetTotalCost = scoutList.GetTotalCost,
+		RunJobHandler = RunJobHandler,
 	}
 	
 	return newScoutHandler

@@ -13,15 +13,11 @@ function gadget:GetInfo()
     date      = "2010-07-22",
     license   = "GNU GPL, v2 or later",
     layer     = 1,
-    enabled   = true,
+    enabled   = false,
   }
 end
 
 local TESTMODE = false
-
-if not tobool(Spring.GetModOptions().marketandbounty) then
-	return
-end 
 
 local echo 				= Spring.Echo
 local spGetPlayerInfo	= Spring.GetPlayerInfo
@@ -53,20 +49,6 @@ local spInsertUnitCmdDesc	= Spring.InsertUnitCmdDesc
 local spGetAllyTeamList		= Spring.GetAllyTeamList
 
 -------------------------------------------------------------------------------------
--------------------------------------------------------------------------------------
-
-local function explode(div,str)
-  if (div=='') then return false end
-  local pos,arr = 0,{}
-  -- for each divider found
-  for st,sp in function() return string.find(str,div,pos,true) end do
-    table.insert(arr,string.sub(str,pos,st-1)) -- Attach chars left of current divider
-    pos = sp + 1 -- Jump past current divider
-  end
-  table.insert(arr,string.sub(str,pos)) -- Attach chars right of last divider
-  return arr
-end
-
 -------------------------------------------------------------------------------------
 
 local function CheckOffer(data)
@@ -104,13 +86,13 @@ end
 --Callins
 
 function gadget:RecvLuaMsg(msg, playerID)
-	local msgTable = explode( '|', msg )
+	local msgTable = Spring.Utilities.ExplodeString( '|', msg )
 	local command = msgTable[1]
 	local sell = command == '$sell'
 	local buy = command == '$buy'
 	
 	if buy or sell then
-		local _,_,spec,teamID, allianceID = spGetPlayerInfo(playerID)
+		local _,_,spec,teamID, allianceID = spGetPlayerInfo(playerID, false)
 		if spec then
 			return
 		end
@@ -166,7 +148,7 @@ end
 
 function gadget:Initialize()
 	gaiaTeam = Spring.GetGaiaTeamID()
-	_,_,_,_,_, gaiaAlliance = spGetTeamInfo(gaiaTeam)
+	_,_,_,_,_, gaiaAlliance = spGetTeamInfo(gaiaTeam, false)
 	
 	if TESTMODE then
 		local allUnits = Spring.GetAllUnits()

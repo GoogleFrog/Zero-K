@@ -25,12 +25,12 @@ end
 --------------------------------------------------------------------------------
 
 local nukeDefs = {
-	[UnitDefNames["corsilo"].id] = true,
+	[UnitDefNames["staticnuke"].id] = true,
 }
 
 local interceptorRanges = {
-	[UnitDefNames["armamd"].id] = 2500^2,
-	[UnitDefNames["reef"].id] = 1200^2,
+	[UnitDefNames["staticantinuke"].id] = 2500^2,
+	--[UnitDefNames["reef"].id] = 1200^2,
 }
 
 --------------------------------------------------------------------------------
@@ -56,7 +56,7 @@ function gadget:AllowCommand(unitID, unitDefID, teamID, cmdID, cmdParams, cmdOpt
 		-- Inserted attack command with 1 param is a unit target
 		if Spring.ValidUnitID(cmdParams[4]) then
 			local x,y,z = Spring.GetUnitPosition(cmdParams[4])
-			Spring.GiveOrderToUnit(unitID, CMD.INSERT, {cmdParams[1], cmdParams[2], cmdParams[3], x, y, z}, cmdOptions)
+			Spring.GiveOrderToUnit(unitID, CMD.INSERT, {cmdParams[1], cmdParams[2], cmdParams[3], x, y, z}, cmdOptions.coded)
 			return false
 		end
 	end
@@ -65,7 +65,7 @@ function gadget:AllowCommand(unitID, unitDefID, teamID, cmdID, cmdParams, cmdOpt
 		-- Attack command with 1 param is a unit target
 		if Spring.ValidUnitID(cmdParams[1]) then
 			local x,y,z = Spring.GetUnitPosition(cmdParams[1])
-			Spring.GiveOrderToUnit(unitID, CMD.ATTACK, { x, y, z}, cmdOptions)
+			Spring.GiveOrderToUnit(unitID, CMD.ATTACK, { x, y, z}, cmdOptions.coded)
 			return false
 		end
 	end
@@ -156,7 +156,11 @@ end
 function gadget:Initialize()
 	for wdid, wd in pairs(WeaponDefs) do
 		if wd.interceptor > 0 and wd.coverageRange then
-			Script.SetWatchWeapon(wdid, true)
+			if Script.SetWatchAllowTarget then
+				Script.SetWatchAllowTarget(wdid, true)
+			else
+				Script.SetWatchWeapon(wdid, true)
+			end
 		end
 	end
 end

@@ -279,7 +279,7 @@ function widget:Shutdown()
   end
 
   if (gl.DeleteFBO) then
-    gl.DeleteFBO(fbo or 0)
+    gl.DeleteFBO(fbo)
   end
 
   if (gl.DeleteShader) then
@@ -293,8 +293,6 @@ end
 
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
-
-Spring.GetTeamColor = Spring.GetTeamColor or function(teamID) local _,_,_,_,_,_,r,g,b = Spring.GetTeamInfo(teamID); return r,g,b end
 
 local teamColors = {}
 local function SetTeamColor(teamID)

@@ -21,14 +21,9 @@ end
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
 -- CONFIG
-local NeedWaitWait = {
-	[UnitDefNames["chicken"].id] = true,
-}
-
 local NoDamageToSelf = {
 	[UnitDefNames["chicken"].id] = true,
 }
-
 
 -------------------------------------------------------------------------------------
 -------------------------------------------------------------------------------------
@@ -43,10 +38,11 @@ local GRAVITY = Game.gravity
 local UNIT_UNIT_SPEED = 5.5
 local UNIT_UNIT_DAMAGE_FACTOR = 0.8
 local TANGENT_DAMAGE = 0.5
-local DEBRIS_SPRING_DAMAGE_MULTIPLIER = 2.5 --tweaked arbitrarily
+local DEBRIS_SPRING_DAMAGE_MULTIPLIER = 10 --tweaked arbitrarily
 
 local gameframe = Spring.GetGameFrame()
 local attributes = {}
+local unitWantedVelocity
 
 for unitDefID=1,#UnitDefs do
 	local ud = UnitDefs[unitDefID]
@@ -58,13 +54,14 @@ for unitDefID=1,#UnitDefs do
 		velocityDamageScale = ud.mass*0.6,
 		mass = ud.mass,
 	}
-	if ud.speed == 0 then -- buildings are more massive
+	if ud.isImmobile then -- buildings are more massive
 		attributes[unitDefID].velocityDamageScale = attributes[unitDefID].velocityDamageScale*10
 	end
 end
 
 local wantedWeaponList = {-1, -2, -3}
 
+local collisionDamageMult = {}
 local fallDamageImmunityWeaponID = {}
 
 for wdid = 1, #WeaponDefs do
@@ -96,33 +93,19 @@ local function LocalSpeedToDamage(unitID, unitDefID, speed)
 	end
 end
 
-local function SpringSpeedToDamage(colliderrMass,collideeeMass,relativeSpeed) --Inelastic collision. Reference: Spring/rts/Sim/MoveTypes/GroundMoveType.cpp#875
+local function SpringSpeedToDamage(colliderMass,collideeeMass,relativeSpeed) --Inelastic collision. Reference: Spring/rts/Sim/MoveTypes/GroundMoveType.cpp#875
 	local COLLISION_DAMAGE_MULT = 0.02 --Reference: Spring/rts/Sim/MoveTypes/GroundMoveType.cpp#66
 	local MAX_UNIT_SPEED = 1000 --Reference: Spring/rts/Sim/Misc/GlobalConstants.h 
 	local impactSpeed = relativeSpeed * 0.5; 
-	local colliderRelMass = (colliderrMass / (colliderrMass + collideeeMass));
-	local colliderRelImpactSpeed = impactSpeed * (1 - colliderRelMass);
-	local collideeRelImpactSpeed = impactSpeed * (colliderRelMass);
-	local colliderImpactDmgMult = math.min(colliderRelImpactSpeed * colliderrMass * COLLISION_DAMAGE_MULT, MAX_UNIT_SPEED);
-	local collideeImpactDmgMult = math.min(collideeRelImpactSpeed * colliderrMass * COLLISION_DAMAGE_MULT, MAX_UNIT_SPEED);
+	local colliderelMass = (colliderMass / (colliderMass + collideeeMass));
+	local colliderelImpactSpeed = impactSpeed * (1 - colliderelMass);
+	local collideeRelImpactSpeed = impactSpeed * (colliderelMass);
+	local colliderImpactDmgMult = math.min(colliderelImpactSpeed * colliderMass * COLLISION_DAMAGE_MULT, MAX_UNIT_SPEED);
+	local collideeImpactDmgMult = math.min(collideeRelImpactSpeed * colliderMass * COLLISION_DAMAGE_MULT, MAX_UNIT_SPEED);
 	-- colliderImpactDmgMult = math.modf(colliderImpactDmgMult) --in case fraction need to be removed
 	-- collideeImpactDmgMult = math.modf(collideeImpactDmgMult)
 	
 	return colliderImpactDmgMult, collideeImpactDmgMult
-end
-
-local function IsDamageMatch(collideeeData,colliderrData,relativeSpeed)
-	local colliderrExpected, collideeeExpected = SpringSpeedToDamage(colliderrData.mass,collideeeData.mass,relativeSpeed)
-	for i=1, #colliderrData.givenDamage do
-		for j=1, #collideeeData.givenDamage do
-			local collideWithBuilding = colliderrData.givenDamage[i] == collideeeData.givenDamage[j]
-			local collideWithUnit= colliderrExpected==colliderrData.givenDamage[i] and collideeeExpected==collideeeData.givenDamage[j]
-			if collideWithUnit or collideWithBuilding then
-				return i, j
-			end
-		end
-	end
-	return false,false
 end
 
 local unitPermanentImmune = {}
@@ -155,16 +138,90 @@ local function SetNoDamageToAllyCollidee(unitID, frame)
 	end
 end
 
+local function SetCollisionDamageMult(unitID, mult)
+	collisionDamageMult[unitID] = mult
+end
+
 GG.SetUnitPermanentFallDamageImmunity = SetUnitPermanentFallDamageImmunity
 GG.SetUnitFallDamageImmunity = SetUnitFallDamageImmunity
 GG.SetUnitFallDamageImmunityFeature = SetUnitFallDamageImmunityFeature
-GG.SetNoDamageToAllyCollidee=SetNoDamageToAllyCollidee
+GG.SetNoDamageToAllyCollidee = SetNoDamageToAllyCollidee
+GG.SetCollisionDamageMult = SetCollisionDamageMult
 
 -------------------------------------------------------------------
 -------------------------------------------------------------------
 
-local unitCollide = {}
-local clearTable = false
+-- function gadget:FeaturePreDamaged() --require Spring 95
+-- end
+
+local function DoCollisionDamage(unitID, unitDefID, otherID)
+	local myVx, myVy, myVz, mySpeed = Spring.GetUnitVelocity(unitID)
+	local oVx, oVy, oVz, otherSpeed = Spring.GetUnitVelocity(otherID)
+	local relativeSpeed = math.sqrt((oVx - myVx)^2 + (oVy - myVy)^2 + (oVz - myVz)^2)
+	
+	local otherUnitDefID = Spring.GetUnitDefID(otherID)
+	local noSelfDamage = false
+	if NoDamageToSelf[unitDefID] and NoDamageToSelf[otherUnitDefID] then
+		noSelfDamage = true
+	end
+	if (mySpeed > UNIT_UNIT_SPEED or otherSpeed > UNIT_UNIT_SPEED) and not noSelfDamage then
+		local otherDamage = LocalSpeedToDamage(unitID, unitDefID, relativeSpeed)
+		local myDamage = LocalSpeedToDamage(otherID, otherUnitDefID, relativeSpeed)
+		local damageToDeal = math.min(myDamage, otherDamage) * UNIT_UNIT_DAMAGE_FACTOR -- deal the damage of the least massive unit
+		local isUnitAllied = (spGetUnitAllyTeam(unitID) == spGetUnitAllyTeam(otherID))
+		local colliderImmune = false
+		
+		local myMass = attributes[unitDefID].mass
+		local otherMass = attributes[otherUnitDefID].mass
+		local myVelFrac = myMass/(myMass + otherMass)
+		
+		local aVx = myVx*myVelFrac + oVx*(1 - myVelFrac)
+		local aVy = myVy*myVelFrac + oVy*(1 - myVelFrac)
+		local aVz = myVz*myVelFrac + oVz*(1 - myVelFrac)
+		
+		unitWantedVelocity = unitWantedVelocity or {}
+		unitWantedVelocity[#unitWantedVelocity + 1] = {unitID, aVx, aVy, aVz}
+		unitWantedVelocity[#unitWantedVelocity + 1] = {otherID, aVx, aVy, aVz}
+		--GG.AddGadgetImpulseRaw(unitID, aVx - myVx, aVy - myVy, aVz - myVz, true, true)
+		--GG.AddGadgetImpulseRaw(otherID, aVx - oVx, aVy - oVy, aVz - oVz, true, true)
+		
+		if unitImmune[unitID] then
+			if unitImmune[unitID] < gameframe then
+				unitImmune[unitID] = nil
+			else
+				colliderImmune = true
+			end
+		end
+		if noDamageToAllyCollidee[otherID] then
+			if noDamageToAllyCollidee[otherID] < gameframe then
+				noDamageToAllyCollidee[otherID] = nil
+			elseif isUnitAllied then
+				colliderImmune = true
+			end
+		end
+		if not colliderImmune then
+			spAddUnitDamage(unitID, damageToDeal*(collisionDamageMult[unitID] or 1), 0, nil, -7)
+		end
+		local collideeImmune = false
+		if unitImmune[otherID] then
+			if unitImmune[otherID] < gameframe then
+				unitImmune[otherID] = nil
+			else
+				collideeImmune = true
+			end
+		end
+		if noDamageToAllyCollidee[unitID] then
+			if noDamageToAllyCollidee[unitID] < gameframe then
+				noDamageToAllyCollidee[unitID] = nil
+			elseif isUnitAllied then
+				collideeImmune = true
+			end
+		end
+		if not collideeImmune then
+			spAddUnitDamage(otherID, damageToDeal*(collisionDamageMult[otherID] or 1), 0, nil, -7)
+		end
+	end
+end
 
 -- weaponDefID -1 --> debris collision
 -- weaponDefID -2 --> ground collision
@@ -179,36 +236,49 @@ end
 function gadget:UnitPreDamaged(unitID, unitDefID, unitTeam, damage, paralyzer, weaponDefID, attackerID, attackerDefID, attackerTeam)
 	
 	if fallDamageImmunityWeaponID[weaponDefID] then
-		
 		SetUnitFallDamageImmunity(unitID, fallDamageImmunityWeaponID[weaponDefID] + gameframe)
 		SetUnitFallDamageImmunityFeature(unitID, fallDamageImmunityWeaponID[weaponDefID] + gameframe)
 	end
 	
 	-- unit or wreck collision
-	if (weaponDefID == -3) and attackerID == nil and not unitPermanentImmune[unitID] then
-		if unitCollide[unitID] then
-			local collisionCount = unitCollide[unitID].collisionCount + 1
-			unitCollide[unitID].collisionCount = collisionCount
-			unitCollide[unitID].givenDamage[collisionCount] = damage
-		else
+	if (weaponDefID == -3) and not unitPermanentImmune[unitID] then
+		if attackerID == nil then
+			-- Wreck collision
 			local vx,vy,vz = Spring.GetUnitVelocity(unitID)
-			local speed = math.sqrt(vx^2 + vy^2 + vz^2)
-			unitCollide[unitID] = {
-				unitDefID = unitDefID,
-				vx = vx, vy = vy, vz = vz,
-				certainDamage = speed > UNIT_UNIT_SPEED,
-				speed = speed,
-				collisionCount = 1,
-				givenDamage = {damage},
-				mass = attributes[unitDefID].mass,
-			}
-			clearTable = true
+			if vx then
+				local damageTotal = DEBRIS_SPRING_DAMAGE_MULTIPLIER*damage -- Why????
+				damageTotal = damageTotal*(collisionDamageMult[unitID] or 1)
+				--spAddUnitDamage(unitID, damageTotal, 0, nil, -7)
+				
+				unitWantedVelocity = unitWantedVelocity or {}
+				unitWantedVelocity[#unitWantedVelocity + 1] = {unitID, 0.3}
+				--GG.AddGadgetImpulseRaw(unitID, -1*vx, -1*vy, -1*vz, true, true)
+				return damageTotal
+			end
+			return 0
+		end
+		
+		-- Unit on unit collision
+		unitAlreadyProcessed = unitAlreadyProcessed or {}
+		if unitAlreadyProcessed[unitID] then
+			unitAlreadyProcessed[unitID] = false
+		else
+			unitAlreadyProcessed[attackerID] = true
+			DoCollisionDamage(unitID, unitDefID, attackerID)
+			return 0
 		end
 		return 0 -- units bounce but don't damage themselves.
 	end
 	
 	-- ground collision
 	if weaponDefID == -2 and attackerID == nil and Spring.ValidUnitID(unitID) and UnitDefs[unitDefID] then
+		-- Unit AI and script workarounds.
+		GG.WaitWaitMoveUnit(unitID)
+			
+		local env = Spring.UnitScript.GetScriptEnv(unitID)
+		if env and env.script.StartMoving then
+			Spring.UnitScript.CallAsUnit(unitID, env.script.StartMoving)
+		end
 	
 		if unitImmune[unitID] then
 			if unitImmune[unitID] >= gameframe then
@@ -220,26 +290,27 @@ function gadget:UnitPreDamaged(unitID, unitDefID, unitTeam, damage, paralyzer, w
 		-- normal is multiplied by elasticity, tangent by friction
 		-- unit takes damage based on velocity at normal to terrain + TANGENT_DAMAGE of velocity of tangent
 		local att = attributes[unitDefID]
-		local vx,vy,vz = Spring.GetUnitVelocity(unitID)
+		local vx,vy,vz, speed = Spring.GetUnitVelocity(unitID)
 		local x,y,z = Spring.GetUnitPosition(unitID)
 		local nx, ny, nz = Spring.GetGroundNormal(x,z)
 		local nMag = math.sqrt(nx^2 + ny^2 + nz^2)
-		local nx, ny, nz = nx/nMag, ny/nMag, nz/nMag -- normal to unit vector
-		nx, ny, nz = vx*nx, vy*ny, vz*nz -- normal is now a component of velocity
-		local tx, ty, tz = vx-nx, vy-ny, vz-nz -- tangent is the other component of velocity
+		nx, ny, nz = nx/nMag, ny/nMag, nz/nMag -- normal to unit vector
+		local dot = nx*vx + ny*vy + nz*vz
+		nx, ny, nz = dot*nx, dot*ny, dot*nz -- normal is now a component of velocity
+		local tx, ty, tz = vx - nx, vy - ny, vz - nz -- tangent is the other component of velocity
 		local nf = att.elasticity
 		local tf = att.friction
-		vx, vy, vz = tx*tf + nx*nf, ty*tf + ny*nf, tz*tf + nz*nf
-		Spring.SetUnitVelocity(unitID,0,0,0)
-		Spring.AddUnitImpulse(unitID,vx,vy,vz) --must do impulse because SetUnitVelocity() is not fully functional in Spring 91 (only work with vertical velocity OR when assigned 0)
-		local damgeSpeed = math.sqrt((nx + tx*TANGENT_DAMAGE)^2 + (ny + ty*TANGENT_DAMAGE)^2 + (nz + tz*TANGENT_DAMAGE)^2)
-	
-		if NeedWaitWait[unitDefID] then
-			Spring.GiveOrderToUnit(unitID,CMD.WAIT, {}, {})
-			Spring.GiveOrderToUnit(unitID,CMD.WAIT, {}, {})
+		vx, vy, vz = tx*tf + nx*nf - vx, ty*tf + ny*nf - vy, tz*tf + nz*nf - vz
+		GG.AddGadgetImpulseRaw(unitID, vx, vy, vz, true, true)
+		
+		if env and env.script.StopMoving then
+			env.script.StopMoving()
 		end
 		
-		return LocalSpeedToDamage(unitID, unitDefID, damgeSpeed) + outsideMapDamage(unitID, unitDefID)
+		local damgeSpeed = math.sqrt((nx + tx*TANGENT_DAMAGE)^2 + (ny + ty*TANGENT_DAMAGE)^2 + (nz + tz*TANGENT_DAMAGE)^2)
+		local damageTotal = LocalSpeedToDamage(unitID, unitDefID, damgeSpeed) + outsideMapDamage(unitID, unitDefID)
+		damageTotal = damageTotal*(collisionDamageMult[unitID] or 1)
+		return damageTotal
 	end
 	
 	if weaponDefID == -1 then
@@ -249,100 +320,31 @@ function gadget:UnitPreDamaged(unitID, unitDefID, unitTeam, damage, paralyzer, w
 	return damage
 end
 
--- function gadget:FeaturePreDamaged() --require Spring 95
--- end
-
 function gadget:GameFrame(frame)
 	gameframe = frame
-	if clearTable then
-		for colliderrID, colliderrData in pairs(unitCollide) do
-			repeat --for "continue" if collisionCount==0
-			if colliderrData.collisionCount == 0 then --unit already finish processed
-				break;
-			end
-			local crx,cry,crz = colliderrData.x, colliderrData.y, colliderrData.z
-			for collideeeID, collideeeData in pairs(unitCollide) do
-				if collideeeID~= colliderrID and collideeeData.collisionCount > 0 then --if collideee not yet processed:
-					local vx,vy,vz = collideeeData.vx, collideeeData.vy, collideeeData.vz
-					local relativeSpeed = math.sqrt((vx - colliderrData.vx)^2 + (vy - colliderrData.vy)^2 + (vz - colliderrData.vz)^2)
-					local dmgMatchColliderr,dmgMatchCollideee = IsDamageMatch(collideeeData,colliderrData,relativeSpeed)
-					if dmgMatchColliderr then --unit matched by damage
-						local unitDefID = collideeeData.unitDefID
-						local noSelfDamage = false
-						if NoDamageToSelf[colliderrData.unitDefID] and NoDamageToSelf[unitDefID] then
-							noSelfDamage = true
-						end
-						if (colliderrData.certainDamage or collideeeData.certainDamage) and not noSelfDamage then
-							local otherDamage = LocalSpeedToDamage(colliderrID, colliderrData.unitDefID, relativeSpeed)
-							local myDamage = LocalSpeedToDamage(collideeeID, unitDefID, relativeSpeed)
-							local damageToDeal = math.min(myDamage, otherDamage) * UNIT_UNIT_DAMAGE_FACTOR -- deal the damage of the least massive unit
-							local isUnitAllied = (spGetUnitAllyTeam(colliderrID) == spGetUnitAllyTeam(collideeeID))
-							local colliderImmune = false
-							if unitImmune[colliderrID] then
-								if unitImmune[colliderrID] < frame then
-									unitImmune[colliderrID] = nil
-								else
-									colliderImmune = true
-								end
-							end
-							if noDamageToAllyCollidee[collideeeID] then
-								if noDamageToAllyCollidee[collideeeID] < frame then
-									noDamageToAllyCollidee[collideeeID] = nil
-								elseif isUnitAllied then
-									colliderImmune = true
-								end
-							end
-							if not colliderImmune then
-								spAddUnitDamage(colliderrID, damageToDeal, 0, nil, -7)
-							end
-							local collideeImmune = false
-							if unitImmune[collideeeID] then
-								if unitImmune[collideeeID] < frame then
-									unitImmune[collideeeID] = nil
-								else
-									collideeImmune = true
-								end
-							end
-							if noDamageToAllyCollidee[colliderrID] then
-								if noDamageToAllyCollidee[colliderrID] < frame then
-									noDamageToAllyCollidee[colliderrID] = nil
-								elseif isUnitAllied then
-									collideeImmune = true
-								end
-							end
-							if not collideeImmune then
-								spAddUnitDamage(collideeeID, damageToDeal, 0, nil, -7)
-							end
-						end
-						colliderrData.collisionCount = colliderrData.collisionCount - 1
-						collideeeData.collisionCount = collideeeData.collisionCount - 1
-						table.remove(colliderrData.givenDamage, dmgMatchColliderr)
-						table.remove(collideeeData.givenDamage, dmgMatchCollideee)
-						if colliderrData.collisionCount == 0 then
-							break;
-						end
+	if unitAlreadyProcessed then
+		unitAlreadyProcessed = nil
+	end
+	if unitWantedVelocity then
+		local alreadySet = {}
+		for i = 1, #unitWantedVelocity do
+			local unitID = unitWantedVelocity[i][1]
+			if not alreadySet[unitID] then
+				alreadySet[unitID] = true
+				local vx, vy, vz, speed = Spring.GetUnitVelocity(unitID)
+				if vx then
+					if unitWantedVelocity[i][4] then
+						-- Set mode
+						local nx, ny, nz = unitWantedVelocity[i][2], unitWantedVelocity[i][3], unitWantedVelocity[i][4]
+						GG.AddGadgetImpulseRaw(unitID, nx - vx, ny - vy, nz - vz, true, true)
+					else
+						-- Scale mode
+						local scale = unitWantedVelocity[i][2] - 1
+						GG.AddGadgetImpulseRaw(unitID, scale*vx, scale*vy, scale*vz, true, true)
 					end
 				end
 			end
-			if colliderrData.collisionCount >= 1 then --add damage to the rest of the collisionCount that doesn't have contact with any unit
-			-- there is no unitID when colliding with feature. Will require gadget:FeaturePreDamaged() in Spring 95 if to get the featureID
-				if unitImmuneFeature[colliderrID] then
-					if unitImmuneFeature[colliderrID] < frame then
-						unitImmuneFeature[colliderrID] = nil
-						for i=1, #colliderrData.givenDamage do --use damage given by Spring
-							spAddUnitDamage(colliderrID, DEBRIS_SPRING_DAMAGE_MULTIPLIER*colliderrData.givenDamage[i], 0, nil, -7)
-						end
-					end
-				else
-					for i=1, #colliderrData.givenDamage do --use damage given by Spring
-						spAddUnitDamage(colliderrID, DEBRIS_SPRING_DAMAGE_MULTIPLIER*colliderrData.givenDamage[i], 0, nil, -7)
-					end
-				end
-				colliderrData.collisionCount = 0 --mark this unit as processed
-			end
-			until (true) --exit repeat
 		end
-		unitCollide = {}
-		clearTable = false
+		unitWantedVelocity = nil
 	end
 end

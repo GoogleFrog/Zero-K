@@ -1,3 +1,5 @@
+--------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
 function gadget:GetInfo()
   return {
     name      = "Orbital Drop",
@@ -11,17 +13,22 @@ function gadget:GetInfo()
 end
 --Note: 2 new FIXME: unit wiggle hax & MoveCtrl.SetGravity magic number.
 
-if not gadgetHandler:IsSyncedCode() then
-  return false -- no unsynced code
-end
+local SAVE_FILE = "Gadgets/mission_orbital_drop.lua"
+--------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
+if (gadgetHandler:IsSyncedCode()) then
+--------------------------------------------------------------------------------
+-- SYNCED
+--------------------------------------------------------------------------------
 
 local Spring = Spring
 local emptyTable = {}
+local LOS_ACCESS = {inlos = true}
 
 ----- Settings -----------------------------------------------------------------
 
 local defTimeToGround = 160 --customizable (frame).
-local defFallGravity =Game.gravity/30/30 --customizable (elmo/frame^2) positive is upward
+local defFallGravity = Game.gravity/30/30 --customizable (elmo/frame^2) positive is upward
 local defSpawnHeight = 3000 --height above groundlevel, is customizable (in elmo)
 local defBrakeHeight = 500 --height above groundlevel,is customizable (in elmo)
 
@@ -33,9 +40,10 @@ local defBrakeHeight = 500 --height above groundlevel,is customizable (in elmo)
 --Use "useSetUnitVelocity=true" when MoveCtrl usage cause problem (MoveCtrl is prefered by this gadget).
 --TODO: remove safety, make unit crash and explode like asteroid as a feature.
 
-local unitSpeedProfile = {}
-local units = {}
-local cachedResult = {}
+local units = {}	-- the only thing that needs saving
+local cachedResult = {}	-- caches the falling behaviour based on time to ground, fall gravity, unit spawn height and unit brake height
+
+_G.units = units
 
 local function GetFallProfile(timeToGround, fallGravity,unitSpawnHeight,unitBrakeHeight)
 	--INFO: this create drop behaviour using the value in argument. All argument can be either custom value or default value or mixed
@@ -84,12 +92,15 @@ local function StartsWith(s, startString)
 end
 
 
-function GG.DropUnit(unitDefName, x, y, z, facing, teamID,useSetUnitVelocity,timeToGround, fallGravity,absSpawnHeight,absBrakeHeight)
+function GG.DropUnit(unitDefName, x, y, z, facing, teamID, useSetUnitVelocity, timeToGround, fallGravity, absSpawnHeight, absBrakeHeight, dyncommID, staticDyncommLevel, dynamicCommanderOnly)
   local gy = Spring.GetGroundHeight(x, z)
   if y < gy then 
     y = gy 
   end
-  local unitID = Spring.CreateUnit(unitDefName, x, y, z, facing, teamID)
+  local unitID = (dyncommID and GG.Upgrades_CreateStarterDyncomm and GG.Upgrades_CreateStarterDyncomm(dyncommID, x, y, z, facing, teamID, staticDyncommLevel))
+  if (not unitID) and (not dynamicCommanderOnly) then
+    unitID = Spring.CreateUnit(unitDefName, x, y, z, facing, teamID)
+  end
   if not Spring.ValidUnitID(unitID) then
     Spring.Echo("Orbital Drop error: unitID from" .. unitDefName .." is invalid. No orbital drop for this unit.")
 	return
@@ -102,7 +113,10 @@ function GG.DropUnit(unitDefName, x, y, z, facing, teamID,useSetUnitVelocity,tim
     return unitID
   end
   local unitDef = UnitDefNames[unitDefName]
-  if not unitDef.isBuilding and unitDef.speed > 0 and Spring.GetGameFrame() > 1 and ((not timeToGround) or timeToGround > 0) then
+  if (unitDef == nil) then -- dynamic comm
+    unitDef = UnitDefs[Spring.GetUnitDefID(unitID)]
+  end
+  if not unitDef.isImmobile and Spring.GetGameFrame() > 1 and ((not timeToGround) or timeToGround > 0) then
 	timeToGround,fallGravity,absSpawnHeight,absBrakeHeight = timeToGround or defTimeToGround,fallGravity or defFallGravity,absSpawnHeight or defSpawnHeight,absBrakeHeight or defBrakeHeight --check input for NIL
     y = gy + absSpawnHeight+10 --spawn height
 	local speedProfile = GetFallProfile(timeToGround, fallGravity,absSpawnHeight,absBrakeHeight)
@@ -121,7 +135,19 @@ function GG.DropUnit(unitDefName, x, y, z, facing, teamID,useSetUnitVelocity,tim
 		Spring.MoveCtrl.SetGravity(unitID,0)
 	end
 	units[unitID] = {2,absBrakeHeight+gy,heading,useSetUnitVelocity,speedProfile} --store speed profile index, store braking height , store heading , store speed profile
+
+	Spring.SetUnitRulesParam(unitID, "orbitalDrop", 1, LOS_ACCESS)
+
+	-- prevent units from shooting while falling
+	if GG.UpdateUnitAttributes then
+		Spring.SetUnitRulesParam(unitID, "selfReloadSpeedChange", 0, LOS_ACCESS)
+		GG.UpdateUnitAttributes(unitID)
+	end
+	-- can't be shot either (in Spring ~100 enemies will shoot at the ground below them)
+	-- problem is enemies won't re-engage even after neutrality is removed
+	--Spring.SetUnitNeutral(unitID, true)
   end
+
   return unitID
 end
 
@@ -162,6 +188,11 @@ function gadget:GameFrame(frame)
 		Spring.GiveOrderToUnit(unitID, CMD.WAIT, emptyTable, 0)	-- WAIT WAIT to make unit continue with any orders it has
 		Spring.GiveOrderToUnit(unitID, CMD.WAIT, emptyTable, 0)
 		--Spring.Echo(units[unitID][1]) --see if it match desired timeToGround
+		if GG.UpdateUnitAttributes then
+			Spring.SetUnitRulesParam(unitID, "selfReloadSpeedChange", 1, LOS_ACCESS)
+			Spring.SetUnitRulesParam(unitID, "orbitalDrop", 0, LOS_ACCESS)
+			GG.UpdateUnitAttributes(unitID)
+		end
 		units[unitID]= nil --remove from watchlist
       elseif y < brakeAltitude+10  then
         -- unit is braking
@@ -172,6 +203,9 @@ function gadget:GameFrame(frame)
 			Spring.SpawnCEG("banishertrail", x + 10, y - 40, z - 10)
 			Spring.SpawnCEG("banishertrail", x - 10, y - 40, z - 10)
 		end
+		--if Spring.GetUnitNeutral(unitID) then
+		--	Spring.SetUnitNeutral(unitID, true)
+		--end
       else
 	  	-- unit is falling
 		if frame % 2 == 0 then
@@ -184,7 +218,63 @@ function gadget:GameFrame(frame)
   end
 end
 
+function gadget:Load(zip)
+	if not (GG.SaveLoad and GG.SaveLoad.ReadFile) then
+		Spring.Log(gadget:GetInfo().name, LOG.ERROR, "Failed to access save/load API")
+		return
+	end
+	
+	local loadData = GG.SaveLoad.ReadFile(zip, "Orbital Drop", SAVE_FILE) or {}
+	local currGameFrame = Spring.GetGameRulesParam("lastSaveGameFrame") or 0
+	local loadedUnits = {}
+	for oldID,entry in pairs(loadData) do
+		local unitID = GG.SaveLoad.GetNewUnitID(oldID)
+		local speedProfile = GetFallProfile(defTimeToGround, defFallGravity, defSpawnHeight, defBrakeHeight)
+		entry[5] = speedProfile
+		local x,y,z = Spring.GetUnitPosition(unitID)
+		
+		if entry[4] then	-- velocity-based drop
+			Spring.AddUnitImpulse(unitID,0,4,0) --wiggle hax. this prevent unit from teleporting to ground. Note: Spring91 need +1/-1 for wiggle hax, but Spring 94 need +4/-4
+			Spring.AddUnitImpulse(unitID,0,-4,0) --FIXME: if fixed, remove this +4/-4 hax.
+			Spring.SetUnitVelocity(unitID,0,speedProfile[1],0) --apply initial velocity
+			heading = Spring.GetUnitHeading(unitID) --get current heading (to be maintained during drop, else unit will tumble)
+			heading = -heading*(math.pi*2/2^16) --convert Spring's heading unit into radian. note:heading must be multiply by negative for use by SetUnitRotation()
+		else	-- movectrl drop
+			Spring.MoveCtrl.Enable(unitID)
+			Spring.MoveCtrl.SetPosition(unitID, x, y, z)
+			Spring.MoveCtrl.SetVelocity(unitID,0,speedProfile[1],0) --apply initial velocity & first gravity
+			Spring.MoveCtrl.SetGravity(unitID,0)
+		end
+		
+		loadedUnits[unitID] = entry
+	end
+	units = loadedUnits
+	_G.units = units
+end
 
+--------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
+else
+--------------------------------------------------------------------------------
+-- UNSYNCED
+--------------------------------------------------------------------------------
+
+function gadget:Save(zip)
+	if not GG.SaveLoad then
+		Spring.Log(gadget:GetInfo().name, LOG.ERROR, "Failed to access save/load API")
+		return
+	end
+	
+	local toSave = Spring.Utilities.MakeRealTable(SYNCED.units, "Orbital Drop")
+	for unitID, data in pairs(toSave) do
+		data[5] = nil
+	end
+	GG.SaveLoad.WriteSaveData(zip, SAVE_FILE, toSave)
+end
+
+--------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
+end
 
 --Appendix for auto-configure algorithm (FOR REFERENCE ONLY!) by msafwan
 --[[

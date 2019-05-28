@@ -40,7 +40,7 @@ local moveUnits = {}
 local myID = 0
 
 local function checkSpec()
-  local _, _, spec = GetPlayerInfo(myID)
+  local _, _, spec = GetPlayerInfo(myID, false)
   if spec then
     widgetHandler:RemoveWidget()
   end
@@ -60,8 +60,8 @@ function widget:Update(deltaTime)
 
  if (countDown > DELAY) then
    for unitID,_ in pairs(moveUnits) do
-     local cQueue = GetCommandQueue(unitID, 1)
-     if (table.getn(cQueue) == 0) then
+     local cQueue = GetCommandQueue(unitID, 0)
+     if (cQueue == 0) then
        local x, y, z = GetUnitPosition(unitID)
        if (math.random(1,2) == 1) then
          x = x + math.random(50,100)
@@ -73,7 +73,7 @@ function widget:Update(deltaTime)
        else
          z = z - math.random(50,100)
        end
-       GiveOrderToUnit(unitID, CMD.FIGHT,  { x, y, z}, { "" })
+       GiveOrderToUnit(unitID, CMD.FIGHT,  { x, y, z},  0)
      end
    end
    moveUnits = {}
@@ -96,7 +96,7 @@ function widget:UnitFinished(unitID, unitDefID, unitTeam)
  end
    
  local ud = UnitDefs[unitDefID]
- if (ud and (not ud.customParams.commtype) and (ud.speed > 0)) then
+ if (ud and (not ud.customParams.commtype) and not ud.isImmobile) then
    checkSpec()
    moveUnits[unitID] = true
    countDown = 0

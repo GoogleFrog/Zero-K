@@ -2,7 +2,6 @@ unitDef = {
   unitname                      = [[tacnuke]],
   name                          = [[Eos]],
   description                   = [[Tactical Nuke]],
-  buildCostEnergy               = 600,
   buildCostMetal                = 600,
   builder                       = false,
   buildingGroundDecalDecaySpeed = 30,
@@ -10,22 +9,12 @@ unitDef = {
   buildingGroundDecalSizeY      = 3,
   buildingGroundDecalType       = [[tacnuke_aoplane.dds]],
   buildPic                      = [[tacnuke.png]],
-  buildTime                     = 600,
-  canAttack                     = true,
   category                      = [[SINK UNARMED]],
   collisionVolumeOffsets        = [[0 25 0]],
   collisionVolumeScales         = [[20 60 20]],
-  collisionVolumeTest	        = 1,
   collisionVolumeType	        = [[CylY]],
 
   customParams                  = {
-    description_fr = [[Lance Missile Nucléaire Tactique]],
-    description_de = [[Taktische Rakete]],
-    description_pl = [[Rakieta taktyczna]],
-    helptext       = [[A long-range precision strike weapon. The Eos' blast radius is small, but lethal.]],
-    helptext_fr    = [[Le Eos est un lance missile nucléaire tactique. Les tetes nucléaires ne sont pas aussi lourdes que celles du Silencer et la portée moindre. Mais bien placé, il peut faire des ravages, et présente un rapport cout/efficacité plus qu'interressant.]],
-    helptext_de    = [[Eine weitreichende, präzise Waffe. Die Druckwelle ist zwar klein, aber tödlich.]],
-    helptext_pl    = [[Jednorazowa rakieta dalekiego zasiegu, ktorej wybuch obejmuje maly obszar, lecz jest bardzo silny.]],
     mobilebuilding = [[1]],
   },
 
@@ -40,7 +29,6 @@ unitDef = {
   minCloakDistance              = 150,
   objectName                    = [[wep_tacnuke.s3o]],
   script                        = [[cruisemissile.lua]],
-  seismicSignature              = 4,
   selfDestructAs                = [[WEAPON]],
 
   sfxtypes                      = {
@@ -75,13 +63,22 @@ unitDef = {
       collideFriendly         = false,
       craterBoost             = 4,
       craterMult              = 3.5,
-	  
+
       customParams            = {
+		burst = Shared.BURST_RELIABLE,
+
+		restrict_in_widgets = 1,
+
       lups_explodelife = 1.5,
+		stats_hide_dps = 1, -- meaningless
+		stats_hide_reload = 1,
+		
+		light_color = [[1.35 0.8 0.36]],
+		light_radius = 400,
 	  },
 	  
       damage                  = {
-        default = 3502.5,
+        default = 3502.4,
         subs    = 175,
       },
 
@@ -92,12 +89,9 @@ unitDef = {
       impulseBoost            = 0,
       impulseFactor           = 0.4,
       interceptedByShieldType = 1,
-      levelGround             = false,
       model                   = [[wep_tacnuke.s3o]],
       range                   = 3500,
       reloadtime              = 10,
-      shakeduration           = [[1.5]],
-      shakemagnitude          = [[32]],
       smokeTrail              = false,
       soundHit                = [[explosion/mini_nuke]],
       soundStart              = [[weapon/missile/tacnuke_launch]],

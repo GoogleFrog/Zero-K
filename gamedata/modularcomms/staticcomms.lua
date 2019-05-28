@@ -1,7 +1,7 @@
-local comms = {
+local commsCampaign = {
   -- singleplayer
   comm_mission_tutorial1 = {
-    chassis = "armcom3",
+    chassis = "cremcom3",
     name = "Tutorial Commander",
     modules = { "commweapon_beamlaser", "module_autorepair", "module_autorepair"},
   },  
@@ -9,104 +9,60 @@ local comms = {
   comm_campaign_ada = {
     chassis = "cremcom2",
     name = "Ada's Commander",
-    description = "Relic Commander, Builds at 10 m/s",
-    helptext = "A special piloted commander unit from before the Fall, functioning well despite its age. Piloted by Captain Ada Caedmon, formerly of the 13th Imperial Auxiliary Cohort.",
-    modules = { "commweapon_beamlaser", "module_ablative_armor", "module_autorepair", "module_high_power_servos"},
-    miscDefs = {
-      customparams = {
-        helptext_pl = "Specjalna zalogowa jednostka dowodzenia sprzed Upadku, sprawna mimo wieku. Pilotem jest Kapitan Ada Caedmon z dawnej 13 Imperialnej Kohorty Wsparcia.",
-      },
-    },
+    -- comm module list should be empty/nil to avoid funny stuff when merging with misson's module table
+    --modules = { "commweapon_beamlaser", "module_ablative_armor", "module_autorepair", "module_high_power_servos"},
   },
   
   comm_campaign_promethean = {
     chassis = "commrecon2",
     name = "The Promethean",
-    helptext = "Founder of the Free Machines and creator of the Firebrand virus, a calm, philosophical AI fighting for the freedom of robotkind. A burning spirit.",
-    modules = { "commweapon_heatray", "module_ablative_armor", "module_ablative_armor", "weaponmod_plasma_containment", "module_autorepair" },
+    --modules = { "commweapon_heatray", "module_ablative_armor", "module_ablative_armor", "weaponmod_plasma_containment", "module_autorepair" },
     decorations = {"skin_recon_red"},
-    miscDefs = {
-      customparams = {
-        helptext_pl = "Zalozyciel Wolnych Maszyn i tworca wirusa Zarzewie; spokojna, filozoficzna sztuczna inteligencja walczaca za wolnosc robotow. Plonie zadza walki.",
-      },
-    },
   },
   
   comm_campaign_freemachine = {
-    chassis = "corcom2",
+    chassis = "commstrike2",
     name = "Libertas Machina",
-    helptext = "The Promethean's top lieutenant, a revolutionary commited to the cause of machine liberation. Loaded for bear and well armored; not to be taken lightly.",
-    modules = { "commweapon_riotcannon", "module_ablative_armor", "module_ablative_armor", "module_adv_targeting", "module_autorepair" },
-    miscDefs = {
-      customparams = {
-        helptext_pl = "Najbardziej zaufany porucznik Prometheana, rewolucjonista oddany sprawie wyzwolenia maszyn. Uzbrojony po zeby i dobrze opancerzony - nie mozna go lekcewazyc.",
-      },
-    },
+    --modules = { "commweapon_riotcannon", "module_ablative_armor", "module_ablative_armor", "module_adv_targeting", "module_autorepair" },
   },
   
   comm_campaign_odin = {
     chassis = "commrecon2",
     name = "Odin",
-    helptext = "The leader of the Valhallans, a warrior built and bred who lives for the glory of battle. An extremely ruthless foe.",
-    modules = { "commweapon_lparticlebeam", "module_ablative_armor", "module_ablative_armor", "module_high_power_servos", "module_autorepair", "module_companion_drone"},
-    miscDefs = {
-      customparams = {
-        helptext_pl = "Lider Valhallan, wojownik z krwi i kosci, ktory zyje dla chwaly bitwy. Nie ma skrupulow.",
-      },
-    },
+    --modules = { "commweapon_lparticlebeam", "module_ablative_armor", "module_ablative_armor", "module_high_power_servos", "module_autorepair", "module_companion_drone"},
   },
 
   comm_campaign_biovizier = {
     chassis = "commsupport2",
     name = "The Biovizier",
-    helptext = "AI keeper of the Dynasty's genetic vaults and master geneticist. Cold and calculating.",
-    modules = { "commweapon_gaussrifle", "module_ablative_armor", "weaponmod_railaccel", "module_autorepair", "module_autorepair" },
+    --modules = { "commweapon_gaussrifle", "module_ablative_armor", "weaponmod_railaccel", "module_autorepair", "module_autorepair" },
     decorations = { "skin_support_green" },
-    miscDefs = {
-      customparams = {
-        helptext_pl = "Sztuczna inteligencja sprawujaca piecze nad kryptami przechowujacymi dane genetyczne Dynastii. Zimna i przebiegla.",
-      },
-    },
   },
   
   comm_campaign_isonade = {
-    chassis = "benzcom2",	-- TODO get a properly organic model
+    chassis = "commstrike2",	-- TODO get a properly organic model
     name = "Lord Isonade",
-    helptext = "One of the ubermenschen nobles of the Dynasty, an ambitious warlord who seeks to establish himself as master of the galaxy. A horribly mutated beast.",
-    modules = { "commweapon_sonicgun", "module_heavy_armor", "module_dmg_booster", "module_autorepair", "module_autorepair" },
-    decorations = { "skin_bombard_steel" },
-    miscDefs = {
-      customparams = {
-        helptext_pl = "Jeden z lordow-nadludzi Dynastii - ambitny wojownik, ktory ma zamiar przejac wladze nad galaktyka. Bestia zmutowana nie do poznania.",
-      },
-    },
+    modules = { "commweapon_gaussrifle", "commweapon_gaussrifle", "module_heavy_armor", "module_dmg_booster", "module_autorepair", "module_autorepair" },
+    decorations = { "skin_strike_chitin" },
   },
 
   comm_campaign_legion = {
-    chassis = "corcom2",
+    chassis = "commstrike2",
     name = "Legate Fidus",
-    helptext = "Commander of the Imperial Vanguard Legion, enforcers of the Emperor's will.  A loyal, steadfast soldier.",
-    modules = { "commweapon_shotgun", "module_heavy_armor", "weaponmod_autoflechette", "module_adv_targeting", "module_autorepair"},
+    decorations = { "skin_strike_renegade" },
+
+    --modules = { "commweapon_shotgun", "module_heavy_armor", "weaponmod_autoflechette", "module_adv_targeting", "module_autorepair"},
     --decorations = { "skin_battle_tiger" },
-    miscDefs = {
-      customparams = {
-        helptext_pl = "Dowodca Imperialnego Legionu Strazniczego, ktory wykonuje wole Imperatora. Wierny i niezlomny zolnierz.",
-      },
-    },
   },  
     
   comm_campaign_praetorian = {
     chassis = "benzcom2",
     name = "Scipio Astra",
-    helptext = "Prefect of the elite Praetorian Guard, the Empire's paladins. A fanatic adherent of the Emperor's cult, purging heretics with massive firepower.",
-    modules = { "commweapon_assaultcannon", "module_heavy_armor", "weaponmod_high_caliber_barrel", "module_adv_targeting", "module_autorepair"},
-    miscDefs = {
-      customparams = {
-        helptext_pl = "Prefekt Strazy Pretorianskiej, paladynow Imperium. Fanatyczna wyznawczyni kultu Imperatora, ktora oczyszcza heretykow ogromna sila ognia.",
-      },
-    },
+    --modules = { "commweapon_assaultcannon", "module_heavy_armor", "weaponmod_high_caliber_barrel", "module_adv_targeting", "module_autorepair"},
   },
+}
   
+local comms = {    
   -- Not Hax
   comm_riot_cai = {
     chassis = "corcom1",
@@ -216,6 +172,78 @@ local comms = {
     modules = { "commweapon_assaultcannon", "module_dmg_booster", "conversion_partillery"},
   },  
 }
+
+for name, data in pairs(commsCampaign) do
+  data.miscDefs = data.miscDefs or {}
+  data.miscDefs.customparams = data.miscDefs.customparams or {}
+  data.miscDefs.customparams.statsname = name;
+  data.miscDefs.reclaimable = false
+  data.miscDefs.canSelfDestruct = false
+  comms[name] = data
+end
+
+--------------------------------------------------------------------------------------
+-- Dynamic Commander Clone Generation
+--------------------------------------------------------------------------------------
+local powerAtLevel = {2000, 3000, 4000, 5000, 6000}
+
+local function MakeClones(levelLimits, moduleNames, fullChassisName, unitName, power, modules, moduleType)
+	if moduleType > #levelLimits then
+		comms[unitName] = {
+			chassis = fullChassisName,
+			name = fullChassisName,
+			modules = modules,
+			power = power,
+		}
+		return
+	end
+	
+	for copies = 0, levelLimits[moduleType] do
+		local newModules = Spring.Utilities.CopyTable(modules)
+		for m = 1, copies do
+			newModules[#newModules + 1] = moduleNames[moduleType]
+		end
+		MakeClones(levelLimits, moduleNames, fullChassisName, unitName .. copies, power, newModules, moduleType + 1)
+	end
+end
+
+local function MakeCommanderChassisClones(chassis, levelLimits, moduleNames)
+	for level = 1, #levelLimits do
+		local fullChassisName = chassis .. level
+		local modules = {}
+		MakeClones(levelLimits[level], moduleNames, fullChassisName, fullChassisName .. "_", powerAtLevel[level], modules, 1)
+	end
+end
+
+--------------------------------------------------------------------------------------
+-- Must match dynamic_comm_defs.lua around line 800 (top of the chassis defs)
+--------------------------------------------------------------------------------------
+MakeCommanderChassisClones("dynrecon", 
+	{{0}, {1}, {1}, {1}, {1}}, 
+	{"module_personal_shield"}
+)
+
+MakeCommanderChassisClones("dynsupport",
+	{{0, 0, 0}, {1, 0, 1}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}},
+	{"module_personal_shield", "module_areashield", "module_resurrect"}
+)
+
+MakeCommanderChassisClones("dynassault", 
+	{{0, 0}, {1, 0}, {1, 1}, {1, 1}, {1, 1}},
+	{"module_personal_shield", "module_areashield"}
+)
+
+MakeCommanderChassisClones("dynstrike", 
+	{{0, 0}, {1, 0}, {1, 1}, {1, 1}, {1, 1}},
+	{"module_personal_shield", "module_areashield"}
+)
+
+-- All modules may be available at any level, depending on campaign layout.
+MakeCommanderChassisClones("dynknight", 
+	{{1, 1, 1, 1}, {1, 1, 1, 1}, {1, 1, 1, 1}, {1, 1, 1, 1}, {1, 1, 1, 1}},
+	{"module_personal_shield", "module_areashield", "module_resurrect", "module_jumpjet"}
+)
+
 --[[
 for name,stats in pairs(comms) do
 	table.insert(stats.modules, "module_econ")
@@ -224,118 +252,7 @@ end
 
 local costAtLevel = {[0] = 0, 0,200,600,300,400}
 
-local morphableCommDefs = {
-  comm_cai_riot = {
-    name = "Riot Cop",
-    chassis = "corcom",
-    levels = {
-      {"commweapon_riotcannon", cost = 100},
-      {"module_ablative_armor", "module_dmg_booster", cost = 325},
-      {"commweapon_heatray", "module_dmg_booster", cost = 250},
-      {"module_heavy_armor", "module_high_power_servos", cost = 575},
-      {"weaponmod_plasma_containment", "module_ablative_armor", cost = 675},
-    },
-  },
-  comm_cai_range = {
-    name = "Mauser",
-    chassis = "benzcom",
-    levels = {
-      {"commweapon_rocketlauncher", cost = 100},
-      {"module_ablative_armor", "module_adv_targeting", cost = 325},
-      {"commweapon_assaultcannon", "weaponmod_standoff_rocket", cost = 550},
-      {"conversion_partillery", "module_adv_targeting", cost = 400},
-      {"weaponmod_high_caliber_barrel", "module_ablative_armor", cost = 625},
-    },    
-  },
-  comm_cai_assault = {
-    name = "Zweihander",
-    chassis = "armcom",
-    levels = {
-      {"commweapon_beamlaser", cost = 50},
-      {"module_ablative_armor", "module_high_power_servos", cost = 325},
-      {"commweapon_lightninggun", "module_dmg_booster", cost = 250},
-      {"weaponmod_high_frequency_beam", "module_adv_targeting", cost = 575},
-      {"weaponmod_stun_booster", "module_autorepair", cost = 475},
-    },        
-  },
-  comm_cai_specialist = {
-    name = "Eagle Eye",
-    chassis = "commsupport",
-    levels = {
-      {"commweapon_lparticlebeam", cost = 50},
-      {"module_ablative_armor", "module_adv_nano", cost = 325},
-      {"commweapon_slowbeam", "module_adv_targeting", cost = 200},
-      {"conversion_shockrifle", "module_adv_targeting", cost = 600},
-      {"conversion_disruptor", "module_autorepair", cost = 400},
-    },       
-  },
-  comm_cai_hispeed = {
-    name = "Blade Runner",
-    chassis = "commrecon",
-    levels = {
-      {"commweapon_heavymachinegun", cost = 100},
-      {"module_high_power_servos", "module_high_power_servos", cost = 300},
-      {"commweapon_shotgun", "module_ablative_armor", cost = 275},
-      {"weaponmod_autoflechette", "module_high_power_servos", cost = 600},
-      {"weaponmod_disruptor_ammo", "module_autorepair", cost = 500},
-    },      
-  },
-  comm_trainer_strike = {
-    name = "Strike Trainer",
-    chassis = "armcom",
-    levels = {
-      {"commweapon_beamlaser", cost = 50},
-      {"module_high_power_servos", "module_high_power_servos", cost = 300},
-      {"commweapon_lightninggun", "module_ablative_armor", cost = 275},
-      {"module_autorepair", "module_high_power_servos", cost = 400},
-      {"module_autorepair", "module_adv_targeting", cost = 400},
-    },     
-  },
-  comm_trainer_battle = {
-    name = "Battle Trainer",
-    chassis = "corcom",
-    levels = {
-      {"commweapon_riotcannon", cost = 100},
-      {"module_ablative_armor", "module_dmg_booster", cost = 325},
-      {"commweapon_heatray", "module_dmg_booster", cost = 250},
-      {"module_heavy_armor", "module_high_power_servos", cost = 575},
-      {"weaponmod_plasma_containment", cost = 500},
-    },
-  },
-  comm_trainer_recon = {
-    name = "Recon Trainer",
-    chassis = "commrecon",
-    levels = {
-      {"commweapon_heavymachinegun", cost = 100},
-      {"module_high_power_servos", "module_high_power_servos", cost = 300},
-      {"commweapon_shotgun", "module_ablative_armor", cost = 275},
-      {"module_dmg_booster", "module_high_power_servos", cost = 300},
-      {"weaponmod_disruptor_ammo", "module_autorepair", cost = 500},
-    },
-  },
-  comm_trainer_support = {
-    name = "Support Trainer",
-    chassis = "commsupport",
-    levels = {
-      {"commweapon_lparticlebeam", cost = 50},
-      {"module_ablative_armor", "module_adv_nano", cost = 325},
-      {"commweapon_slowbeam", "module_resurrect", cost = 325},
-      {"module_high_power_servos", "module_adv_targeting", cost = 300},
-      {"conversion_disruptor", "module_autorepair", cost = 400},
-    },       
-  },
-  comm_trainer_siege = {
-    name = "Siege Trainer",
-    chassis = "benzcom",
-    levels = {
-      {"commweapon_rocketlauncher", cost = 100},
-      {"module_ablative_armor", "module_adv_targeting", cost = 325},
-      {"commweapon_assaultcannon", "weaponmod_standoff_rocket", cost = 550},
-      {"conversion_partillery", "module_adv_targeting", cost = 400},
-      {"weaponmod_high_caliber_barrel", "module_ablative_armor", cost = 625},
-    },    
-  },  
-}
+local morphableCommDefs = VFS.Include("gamedata/modularcomms/staticcomms_morphable.lua")
 
 for templateName, data in pairs(morphableCommDefs) do
   local modules = {}

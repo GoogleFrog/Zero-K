@@ -2,7 +2,6 @@ unitDef = {
   unitname                      = [[napalmmissile]],
   name                          = [[Inferno]],
   description                   = [[Napalm Missile]],
-  buildCostEnergy               = 500,
   buildCostMetal                = 500,
   builder                       = false,
   buildingGroundDecalDecaySpeed = 30,
@@ -10,20 +9,13 @@ unitDef = {
   buildingGroundDecalSizeY      = 3,
   buildingGroundDecalType       = [[napalmmissile_aoplane.dds]],
   buildPic                      = [[napalmmissile.png]],
-  buildTime                     = 500,
-  canAttack                     = true,
   category                      = [[SINK UNARMED]],
   collisionVolumeOffsets        = [[0 15 0]],
   collisionVolumeScales         = [[20 60 20]],
-  collisionVolumeTest	        = 1,
   collisionVolumeType	        = [[CylY]],
 
   customParams                  = {
-    description_de = [[Napalm-Rakete]],
-    description_pl = [[Rakieta zapalajaca]],
-    helptext       = [[The Inferno is a large AoE fire weapon. Its direct damage is modest, but the cloud of fire it creates lasts for a very long time.]],
-    helptext_de    = [[Der Inferno ist eine große AoE Feuerwaffe. Sein direkter Schaden ist gering, aber die Flammenhölle erzeugt Verluste für längere Zeit.]],
-    helptext_pl    = [[Jednorazowa rakieta dalekiego zasięgu, ktora podpala na dlugi czas trafiony obszar, zadajac znajdujacym sie w nim jednostkom obrazenia.]],
+    mobilebuilding = [[1]],
   },
 
   explodeAs                     = [[WEAPON]],
@@ -37,7 +29,6 @@ unitDef = {
   minCloakDistance              = 150,
   objectName                    = [[wep_napalm.s3o]],
   script                        = [[cruisemissile.lua]],
-  seismicSignature              = 4,
   selfDestructAs                = [[WEAPON]],
 
   sfxtypes                      = {
@@ -78,10 +69,18 @@ unitDef = {
         setunitsonfire = "1",
         burntime = 90,
 
+        restrict_in_widgets = 1,
+
+		stats_hide_dps = 1, -- one use
+		stats_hide_reload = 1,
+
 		area_damage = 1,
 		area_damage_radius = 256,
 		area_damage_dps = 20,
 		area_damage_duration = 45,
+		
+		light_color = [[1.35 0.5 0.36]],
+		light_radius = 550,
       },
 
       damage                  = {
@@ -96,13 +95,10 @@ unitDef = {
       impulseBoost            = 0,
       impulseFactor           = 0,
       interceptedByShieldType = 1,
-      levelGround             = false,
       model                   = [[wep_napalm.s3o]],
       noSelfDamage            = true,
       range                   = 3500,
       reloadtime              = 10,
-      shakeduration           = [[1.5]],
-      shakemagnitude          = [[32]],
       smokeTrail              = false,
       soundHit                = [[weapon/missile/nalpalm_missile_hit]],
       soundStart              = [[weapon/missile/tacnuke_launch]],

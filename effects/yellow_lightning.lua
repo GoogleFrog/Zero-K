@@ -8,6 +8,14 @@
 -- yellow_lightningplosion
 -- yellow_lightning_stormbolt
 
+local circleString = "r%.5f y10 -1 x10x10 y10 %d a10 y10      r6.283 y11 -3.1415 a11 y11 -0.5x11x11         y0 0.0417x11x11x11x11 y1 -0.00139x11x11x11x11x11x11 y2 0.0000248015x11x11x11x11x11x11x11x11 y3 -0.000000275573x11x11x11x11x11x11x11x11x11x11 y4 0.00000000208768x11x11x11x11x11x11x11x11x11x11x11x11 y5 1 a0 a1 a2 a3 a4 a5 x10, %d, -0.1667x11x11x11 y0 0.00833x11x11x11x11x11 y1 -0.000198412x11x11x11x11x11x11x11 y2 0.00000275573192x11x11x11x11x11x11x11x11x11 y3 -0.00000002505210838x11x11x11x11x11x11x11x11x11x11x11 y4 0 a11 a0 a1 a2 a3 a4 x10"
+
+local function GetCircle(radius, yPos)
+	radius = radius
+	local weightedRadius = radius^(1/2)
+	return circleString:format(weightedRadius, radius, yPos)
+end
+
 return {
   ["mixed_white_lightning_bomb_small"] = {
     usedefaultexplosions = true,
@@ -158,49 +166,6 @@ return {
     },
   },
   
-  ["yellow_lightning_stormbolt"] = {
-    groundflash = {
-      circlealpha        = 1,
-      circlegrowth       = 0,
-      flashalpha         = 0.3,
-      flashsize          = 32,
-      ttl                = 3,
-      color = {
-        [1]  = 1,
-        [2]  = 1,
-        [3]  = 1,
-      },
-    },
-    lightningballs = {
-      air                = true,
-      class              = [[CSimpleParticleSystem]],
-      count              = 1,
-      ground             = true,
-      water              = true,
-      properties = {
-        airdrag            = 1,
-        colormap           = [[0 0 0 0.01 1 1 1 0.01 0 0 0 0.01]],
-        directional        = true,
-        emitrot            = 80,
-        emitrotspread      = 0,
-        emitvector         = [[0, 1, 0]],
-        gravity            = [[0, 0, 0]],
-        numparticles       = 1,
-        particlelife       = 3,
-        particlelifespread = 0,
-        particlesize       = 2,
-        particlesizespread = 20,
-        particlespeed      = 0.01,
-        particlespeedspread = 0,
-        pos                = [[-10 r20, 1.0, -10 r20]],
-        sizegrowth         = 0,
-        sizemod            = 1.0,
-        texture            = [[whitelightb]],
-      },
-    },
-  },
-
-
   ["yellow_lightning_bomb"] = {
     bluebolts = {
       air                = true,
@@ -223,7 +188,7 @@ return {
       properties = {
         delay              = [[10 r200]],
         explosiongenerator = [[custom:YELLOW_LIGHTNING_STORMBOLT]],
-        pos                = [[-100 r200, 1, -100 r200]],
+        pos                = GetCircle(100, 1),
       },
     },
     groundflash = {
@@ -536,7 +501,7 @@ return {
       properties = {
         delay              = [[10 r200]],
         explosiongenerator = [[custom:YELLOW_LIGHTNING_STORMBOLT]],
-        pos                = [[-100 r200, 1, -100 r200]],
+        pos                = GetCircle(100, 1),
       },
     },
     groundflash = {

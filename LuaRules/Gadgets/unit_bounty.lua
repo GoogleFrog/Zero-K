@@ -15,10 +15,6 @@ include("LuaRules/Configs/constants.lua")
 local TESTMODE = false
 local BOUNTYTIME = 60*5
 
-if not tobool(Spring.GetModOptions().marketandbounty) then
-	return
-end 
-
 local echo 				= Spring.Echo
 local spGetPlayerInfo	= Spring.GetPlayerInfo
 local spGetTeamInfo		= Spring.GetTeamInfo
@@ -50,20 +46,6 @@ local spGetAllyTeamList		= Spring.GetAllyTeamList
 -------------------------------------------------------------------------------------
 -------------------------------------------------------------------------------------
 
-local function explode(div,str)
-  if (div=='') then return false end
-  local pos,arr = 0,{}
-  -- for each divider found
-  for st,sp in function() return string.find(str,div,pos,true) end do
-    table.insert(arr,string.sub(str,pos,st-1)) -- Attach chars left of current divider
-    pos = sp + 1 -- Jump past current divider
-  end
-  table.insert(arr,string.sub(str,pos)) -- Attach chars right of last divider
-  return arr
-end
-
--------------------------------------------------------------------------------------
-
 local function AddBounty( unitID, teamID, price, timer )
 	if not bounty[unitID] then
 		bounty[unitID] = {}
@@ -93,13 +75,13 @@ end
 --Callins
 
 function gadget:RecvLuaMsg(msg, playerID)
-	local msgTable = explode( '|', msg )
+	local msgTable = Spring.Utilities.ExplodeString( '|', msg )
 	local command = msgTable[1]
 	
 	local bounty_prefix = "$bounty"
 	
 	if command == '$bounty' then
-		local _,_, spec, teamID, allianceID = spGetPlayerInfo(playerID)
+		local _,_, spec, teamID, allianceID = spGetPlayerInfo(playerID, false)
 		if spec then
 			return
 		end
@@ -134,7 +116,7 @@ end
 
 function gadget:Initialize()
 	gaiaTeam = Spring.GetGaiaTeamID()
-	_,_,_,_,_, gaiaAlliance = spGetTeamInfo(gaiaTeam)
+	_,_,_,_,_, gaiaAlliance = spGetTeamInfo(gaiaTeam, false)
 	
 	if TESTMODE then
 		local allUnits = Spring.GetAllUnits()

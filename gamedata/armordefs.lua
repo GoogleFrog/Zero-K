@@ -1,14 +1,5 @@
--- $Id: armordefs.lua 4523 2009-05-02 05:11:19Z saktoth $
---------------------------------------------------------------------------------
---------------------------------------------------------------------------------
---
---  file:    armorDefs.lua
---  brief:   armor definitions
---
---------------------------------------------------------------------------------
---------------------------------------------------------------------------------
 
-local reverseCompat = not((Game and true) or false) -- Game is nil in 91.0
+Spring.Echo("Loading ArmorDefs_posts")
 
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
@@ -16,17 +7,15 @@ local reverseCompat = not((Game and true) or false) -- Game is nil in 91.0
 local armorDefs = {
   
   SUBS = {
-    "subarty",
     "subraider",
     "subscout",
-    "cornukesub",
+    "subtacmissile",
   },
 
   CHICKEN = {
     "nest",
 	"chicken_drone",
     "chicken_digger",
-    "chicken",
     "chickens",
     "chickenr",
     "chicken_dodo",
@@ -50,6 +39,7 @@ local armorDefs = {
 	"empiricaldpser",
   }, 
   ELSE   = {},
+  SHIELD = {},
 }
 
 --------------------------------------------------------------------------------
@@ -95,7 +85,14 @@ local DISARM_DAMAGE_MOD = 1/3
 local FLAMER_DAMAGE_MOD = 3
 local GAUSS_DAMAGE_MOD = 1.5
 
--- use categories to set default weapon damages
+-- Set shields to use their own armor type
+for name, wd in pairs(DEFS.weaponDefs) do
+	if wd.weapontype == "Shield" then
+		wd.shieldarmortype = "SHIELD"
+	end
+end
+
+-- use categories to set shield and feature damage. Feature damage uses the default armor class
 for name, wd in pairs(DEFS.weaponDefs) do
 	local weaponNameLower = wd.name:lower()
 	local maxDamage = -0.000001
@@ -106,66 +103,78 @@ for name, wd in pairs(DEFS.weaponDefs) do
 		wd.damage[categoryName] = wd.damage[categoryName] or wd.damage.default
 	end
 	wd.damage.default = maxDamage
+	wd.damage.shield = maxDamage
 
 	-- Stats
-	wd.customparams.statsdamage = wd.customparams.statsdamage or maxDamage
+	wd.customparams.stats_damage = wd.customparams.stats_damage or maxDamage
 	
+	-- raw_damage is damage per frame. shot_damage is full damage per reload.
+	wd.customparams.raw_damage = maxDamage/((wd.customparams.effective_beam_time or wd.beamtime or 1/30) * 30)
+	wd.customparams.shot_damage = maxDamage*(wd.projectiles or 1)*(wd.burst or 1)
+
 	-- damage vs shields
 	if wd.customparams and wd.customparams.damage_vs_shield then
-		wd.damage.default = tonumber(wd.customparams.damage_vs_shield)
+		wd.damage.shield = tonumber(wd.customparams.damage_vs_shield)
 	else
 		local cp = wd.customparams or {}
 
 		if wd.paralyzer then
-			wd.damage.default = maxDamage * EMP_DAMAGE_MOD
+			wd.damage.shield = maxDamage * EMP_DAMAGE_MOD
+		end
 
-			-- add extra damage vs shields for mixed EMP damage units
-			if cp.extra_damage then
-				wd.damage.default = wd.damage.default + tonumber(cp.extra_damage)
-			end
+		-- add extra damage vs shields for mixed EMP damage units
+		if cp.extra_damage then
+			wd.damage.shield = wd.damage.shield + tonumber(cp.extra_damage) * EMP_DAMAGE_MOD
 		end
 
 		if (cp.timeslow_damagefactor) then
 			if (tobool(cp.timeslow_onlyslow)) then
-				wd.damage.default = 0
+				wd.damage.shield = 0
 			end
-			wd.damage.default = wd.damage.default + (tonumber(wd.customparams.timeslow_damagefactor) * maxDamage * SLOW_DAMAGE_MOD)
+			wd.damage.shield = wd.damage.shield + (tonumber(wd.customparams.timeslow_damagefactor) * maxDamage * SLOW_DAMAGE_MOD)
 		end
 
 		if (cp.disarmdamagemult) then
 			if (tobool(cp.disarmdamageonly)) then
-				wd.damage.default = 0
+				wd.damage.shield = 0
 			end
-			wd.damage.default = wd.damage.default + (tonumber(wd.customparams.disarmdamagemult) * maxDamage * DISARM_DAMAGE_MOD)
+			wd.damage.shield = wd.damage.shield + (tonumber(wd.customparams.disarmdamagemult) * maxDamage * DISARM_DAMAGE_MOD)
 		end
 
 		-- weapon type bonuses
 		if weaponNameLower:find("flamethrower") or weaponNameLower:find("flame thrower") then
-			wd.damage.default = wd.damage.default * FLAMER_DAMAGE_MOD
+			wd.damage.shield = wd.damage.shield * FLAMER_DAMAGE_MOD
 		elseif weaponNameLower:find("gauss") then
-			wd.damage.default = wd.damage.default * GAUSS_DAMAGE_MOD
+			wd.damage.shield = wd.damage.shield * GAUSS_DAMAGE_MOD
+		end
+	end
+	wd.customparams.shield_damage = wd.damage.shield/((wd.customparams.effective_beam_time or wd.beamtime or 1/30) * 30)
+	if wd.beamtime and wd.beamtime >= 0.1 then
+		-- Settings damage default to 0 removes cratering and impulse so is not universally applied.
+		-- It fixes long beams vs shield cases.
+		wd.damage.shield = 0
+	end
+	
+	-- damage vs features
+	if wd.customparams and wd.customparams.damage_vs_feature then
+		wd.damage.default = tonumber(wd.customparams.damage_vs_feature)
+	else
+		local cp = wd.customparams or {}
+
+		if wd.paralyzer then
+			-- paralyzer is hardcoded in Spring to deal no wreck damage so this handling does nothing.
+ 			wd.damage.default = 0.001 -- Settings damage default to 0 removes cratering and impulse
+		end
+
+		if (cp.timeslow_damagefactor) and (tobool(cp.timeslow_onlyslow)) then
+			wd.damage.default = 0.001 -- Settings damage default to 0 removes cratering and impulse
+		end
+
+		if (cp.disarmdamagemult) and (tobool(cp.disarmdamageonly)) then
+			wd.damage.default = 0.001 -- Settings damage default to 0 removes cratering and impulse
 		end
 	end
 end
-
---------------------------------------------------------------------------------
---------------------------------------------------------------------------------
-
--- convert to named maps  (does anyone know what 99 is for?  :)
-
-if reverseCompat then
-	for categoryName, categoryTable in pairs(armorDefs) do
-		local t = categoryTable
-		for _, unitName in pairs(categoryTable) do
-			t[unitName] = 99
-		end
-		armorDefs[categoryName] = t
-	end
-end
-
-
---------------------------------------------------------------------------------
---------------------------------------------------------------------------------
 
 local system = VFS.Include('gamedata/system.lua')
 

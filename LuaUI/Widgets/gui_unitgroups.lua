@@ -128,7 +128,7 @@ function widget:SetConfigData(data)
 end
 
 function widget:Initialize()
-	local _, _, spec, team = Spring.GetPlayerInfo(Spring.GetMyPlayerID())
+	local _, _, spec, team = Spring.GetPlayerInfo(Spring.GetMyPlayerID(), false)
 	if spec then
 		widgetHandler:RemoveWidget()
 		return false
@@ -173,7 +173,7 @@ function widget:Shutdown()
 end
 
 function widget:GroupChanged(groupId)
-  --echo("GroupChanged " .. groupId)
+  --Spring.Echo("GroupChanged " .. groupId)
   groupId = GetNumFromGroupId(groupId)
   if groupId <= 10 and groupId >=1 then
     updated = true

@@ -18,6 +18,8 @@ if (not gadgetHandler:IsSyncedCode()) then
    return false
 end
 
+local REVERSE_COMPAT = not Spring.Utilities.IsCurrentVersionNewerThan(104, 1120)
+
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
 
@@ -55,8 +57,6 @@ local units = {}
 local unitIndex = {count = 0, info = {}}
 
 local killedFeature = {}
-
-Spring.SetGameRulesParam("gooState",1)
 
 local LOS_ACCESS = {inlos = true}
 --------------------------------------------------------------------------------
@@ -137,8 +137,7 @@ function gadget:GameFrame(f)
 		
 			local unitID = unitIndex[i]
 			local unit = units[unitID]
-			local slowMult = 1 - (spGetUnitRulesParam(unitID, "slowState") or 0)
-			local quota = unit.defs.drain * slowMult
+			local quota = unit.defs.drain * (spGetUnitRulesParam(unitID, "totalBuildPowerChange") or 1)
 			local x,y,z = spGetUnitPosition(unitID)
 			local stunned_or_inbuild = spGetUnitIsStunned(unitID) or (Spring.GetUnitRulesParam(unitID, "disarmed") == 1)
 			-- drain metal while quote not fulfilled
@@ -155,7 +154,9 @@ function gadget:GameFrame(f)
 					);
 					local _, maxMetal, _,_, reclaim = spGetFeatureResources(feature)
 					metal = featureMetal[feature] or maxMetal*reclaim
-					if metal >= quota then
+					-- The 0.0001 is to safeguard against rounding errors possibly introduced by
+					-- the fact that reclaim has a fractional value.
+					if metal - 0.0001 > quota then
 						unit.progress = unit.progress + quota
 						featureMetal[feature] = metal-quota
 						quota = 0
@@ -222,9 +223,16 @@ function gadget:GameFrame(f)
 				local x,y,z = spGetUnitPosition(unitIndex[i])
 				local newId = spCreateUnit(unit.defs.spawns,x+random(-50,50),y,z+random(-50,50),random(0,3),spGetUnitTeam(unitIndex[i]))
 				if newId then
-					local states = spGetUnitStates(unitIndex[i])
-					spGiveOrderToUnit(newId, CMD_FIRE_STATE, {states.firestate}, 0)
-					spGiveOrderToUnit(newId, CMD_MOVE_STATE, {states.movestate}, 0)
+					local firestate, movestate
+					if REVERSE_COMPAT then
+						local states = spGetUnitStates(unitIndex[i])
+						firestate, movestate = states.firestate, states.movestate
+					else
+						firestate, movestate = spGetUnitStates(unitIndex[i], false)
+					end
+					
+					spGiveOrderToUnit(newId, CMD_FIRE_STATE, {firestate}, 0)
+					spGiveOrderToUnit(newId, CMD_MOVE_STATE, {movestate}, 0)
 					spGiveOrderToUnit(newId, CMD_GUARD     , {unitIndex[i]}    , 0)
 
 					spSpawnCEG( CEG_SPAWN,
@@ -271,6 +279,7 @@ function gadget:UnitDestroyed(unitID, unitDefID, unitTeam)
 end
 
 function gadget:Initialize()
+	Spring.SetGameRulesParam("gooState",1)
 	
 	-- load active units
 	for _, unitID in ipairs(Spring.GetAllUnits()) do

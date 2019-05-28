@@ -15,6 +15,8 @@ local weaponDef = {
 		muzzleEffectFire = [[custom:HEAVY_CANNON_MUZZLE]],
 		miscEffectFire   = [[custom:RIOT_SHELL_L]],
 		onlyTargetCategory = [[FIXEDWING GUNSHIP]],
+
+		light_radius = 0,
 	},
 
 	damage                  = {
@@ -29,7 +31,6 @@ local weaponDef = {
 	impulseFactor           = 0,
 	interceptedByShieldType = 1,
 	noSelfDamage            = true,
-	predictBoost            = 1,
 	range                   = 860,
 	reloadtime              = 0.8,
 	size                    = 0.01,

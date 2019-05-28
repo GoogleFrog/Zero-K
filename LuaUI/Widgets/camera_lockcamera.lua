@@ -260,6 +260,26 @@ local CAMERA_STATE_FORMATS = {
 		"rx", "ry", "rz",
 		"oldHeight",
 	},
+	ta = {
+		"px", "py", "pz",
+		"dx", "dy", "dz",
+		"height",
+		"zscale",
+		"flipped",
+	},
+	spring = {
+		"px", "py", "pz",
+		"dx", "dy", "dz",
+		"fov",
+		"rx", "ry", "rz",
+		"dist",
+	},
+	rot = {
+		"px", "py", "pz",
+		"dx", "dy", "dz",
+		"rx", "ry", "rz",
+		"oldHeight",
+	},
 	free = {
 		"px", "py", "pz",
 		"dx", "dy", "dz",
@@ -278,54 +298,27 @@ local CAMERA_STATE_FORMATS = {
 		"vx", "vy", "vz",
 		"avx", "avy", "avz",
 	},
-	OrbitController = {
-		"px", "py", "pz",
-		"tx", "ty", "tz",
-	},
-	ta = {
-		"px", "py", "pz",
-		"dx", "dy", "dz",
-		"height",
-		"zscale",
-		"flipped",
-	},
 	ov = {
 		"px", "py", "pz",
-	},
-	rot = {
-		"px", "py", "pz",
-		"dx", "dy", "dz",
-		"rx", "ry", "rz",
-		"oldHeight",
-	},
-	sm = {
-		"px", "py", "pz",
-		"dx", "dy", "dz",
-		"height",
-		"zscale",
-		"flipped",
-	},
-	tw = {
-		"px", "py", "pz",
-		"rx", "ry", "rz",
 	},
 }
 
 local CAMERA_NAMES = {
-	"fps",
-	"free",
-	"OrbitController",
-	"ta",
-	"ov",
-	"rot",
-	"sm",
-	"tw",
+	[0] = "fps",
+	[1] = "ta",
+	[2] = "spring",
+	[3] = "rot",
+	[4] = "free",
+	[5] = "ov",
 }
-local CAMERA_IDS = {}
-
-for i=1, #CAMERA_NAMES do
-	CAMERA_IDS[CAMERA_NAMES[i]] = i
-end
+local CAMERA_IDS = {
+	fps    = 0,
+	ta     = 1,
+	spring = 2,
+	rot    = 3,
+	free   = 4,
+	ov     = 5,
+}
 
 --does not allow spaces in keys; values are numbers
 local function CameraStateToPacket(s)
@@ -382,7 +375,7 @@ end
 
 local function GetPlayerName(playerID)
 	if not playerID then return "" end
-	local name = GetPlayerInfo(playerID)
+	local name = GetPlayerInfo(playerID, false)
 	return name or ""
 end
 
@@ -426,7 +419,7 @@ end
 --drawing
 ------------------------------------------------
 local function GetPlayerColor(playerID)
-	local _, _, _, teamID = GetPlayerInfo(playerID)
+	local _, _, _, teamID = GetPlayerInfo(playerID, false)
 	if (not teamID) then return nil end
 	return GetTeamColor(teamID)
 end

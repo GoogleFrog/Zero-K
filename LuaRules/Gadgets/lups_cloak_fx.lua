@@ -26,7 +26,7 @@ function gadget:GetInfo()
     date      = "Apr, 2008",
     license   = "GNU GPL, v2 or later",
     layer     = 10,
-    enabled   = not (Game.version:find('91.0') == 1),
+    enabled   = true,
   }
 end
 
@@ -77,22 +77,22 @@ end
 
 local CloakedHitEffect = { class='UnitJitter',options={ life=50, pos={0,0,0}, enemyHit=true, repeatEffect=false} }
 local CloakEffect      = {
-  { class='UnitCloaker',options={ life=50 } },
-  { class='UnitJitter',options={ delay=24, life=math.huge } },
+  { class='UnitCloaker',options={ life=30 } },
+  { class='UnitJitter',options={ delay=20, life=math.huge } },
   { class='Sound',options={ file="sounds/cloak.wav",volume=0.9 } },
 }
 local EnemyCloakEffect      = {
-  { class='UnitCloaker',options={ life=20 } },
+  { class='UnitCloaker',options={ life=30} },
   { class='Sound',options={ file="sounds/cloak.wav",volume=0.9 } },
 }
 
 local DecloakEffect    = {
-  { class='UnitCloaker',options={ inverse=true, life=50 } },
-  { class='UnitJitter',options={ life=24 } },
+  { class='UnitCloaker',options={ inverse=true, life=16 } },
+  { class='UnitJitter',options={ life=8 } },
   { class='Sound',options={ file="sounds/cloak.wav",volume=0.9 } },
 }
 local EnemyDecloakEffect      = {
-  { class='UnitCloaker',options={ inverse=true, life=60 } },
+  { class='UnitCloaker',options={ inverse=true, life=16 } },
   { class='Sound',options={ file="sounds/cloak.wav",volume=0.9 } },
 }
 
@@ -126,6 +126,7 @@ end
 --]]
 
 function gadget:UnitCloaked(unitID,unitDefID,teamID)
+  if not initialized then return end
   local allyTeamID = Spring.GetUnitAllyTeam(unitID)
 
   local LocalAllyTeamID
@@ -165,6 +166,7 @@ function gadget:UnitCloaked(unitID,unitDefID,teamID)
 end
 
 function gadget:UnitDecloaked(unitID,unitDefID,teamID)
+  if not initialized then return end
   local allyTeamID = Spring.GetUnitAllyTeam(unitID)
 
   local LocalAllyTeamID

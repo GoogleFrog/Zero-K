@@ -1,6 +1,3 @@
---------------------------------------------------------------------------------
---------------------------------------------------------------------------------
-
 function widget:GetInfo()
   return {
     name      = "Chili Chat Bubbles",
@@ -12,6 +9,8 @@ function widget:GetInfo()
     enabled   = false,
   }
 end
+
+include("Widgets/COFCTools/ExportUtilities.lua")
 
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
@@ -143,7 +142,7 @@ local function MyPlayerNameToID(name)
 		local players = Spring.GetPlayerList(true)
 		for i=1,#players do
 			local pid = players[i]
-			local pname = Spring.GetPlayerInfo(pid)
+			local pname = Spring.GetPlayerInfo(pid, false)
 			playerNameToIDlist[pname] = pid
 		end
 		return playerNameToIDlist[name]
@@ -324,7 +323,7 @@ function widget:AddChatMessage(msg)
 				return true
 			end		
 			if pp ~= nil then 
-				Spring.SetCameraTarget(pp[1], 0, pp[2],1)
+				SetCameraTarget(pp[1], 0, pp[2],1)
 			end 
 		end},
 	}
@@ -423,7 +422,7 @@ function widget:AddMapPoint(player, caption, px, py, pz)
 		return
 	end
 
-	local playerName,active,isSpec,teamID = Spring.GetPlayerInfo(player)
+	local playerName,active,isSpec,teamID = Spring.GetPlayerInfo(player, false)
 	local teamcolor = {Spring.GetTeamColor(teamID)}
 	if (not active or isSpec) then
 		teamcolor = {1,0,0,1}
@@ -455,7 +454,7 @@ function widget:AddMapPoint(player, caption, px, py, pz)
 		OnMouseDown = {function(self) return true end}, --capture click (don't allow window to pass the click). this prevent user from accidentally clicking on the ground while clicking on the window.
 		OnClick = {function(self)
 			local p = windows_points[window_id]
-			Spring.SetCameraTarget(p.x, p.y, p.z,1)
+			SetCameraTarget(p.x, p.y, p.z,1)
 		end},
 	}
 	function w:HitTest(x,y)  -- FIXME: chili hacked to allow OnClick on window
@@ -547,7 +546,7 @@ function widget:TeamDied(teamID)
 	local player = Spring.GetPlayerList(teamID)[1]
 	-- chicken team has no players (normally)
 	if player then
-		local playerName = Spring.GetPlayerInfo(player)
+		local playerName = Spring.GetPlayerInfo(player, false)
 		widget:AddWarning(playerName .. ' died')
 	end
 end
@@ -555,7 +554,7 @@ end
 --[[
 function widget:TeamChanged(teamID)
 	--// ally changed
-	local playerName = Spring.GetPlayerInfo(Spring.GetPlayerList(teamID)[1])
+	local playerName = Spring.GetPlayerInfo(Spring.GetPlayerList(teamID)[1], false)
 	widget:AddWarning(playerName .. ' allied')
 end
 --]]
@@ -567,7 +566,7 @@ local function SetupAITeamColor() --Copied from gui_chili_chat2_1.lua
 	for i=1,#teamsSorted do
 		local teamID = teamsSorted[i]
 		if teamID ~= Spring.GetGaiaTeamID() then
-			local isAI = select(4,Spring.GetTeamInfo(teamID))
+			local isAI = select(4,Spring.GetTeamInfo(teamID, false))
 			if isAI then
 				local name = select(2,Spring.GetAIInfo(teamID))
 				colorAI[name] = {Spring.GetTeamColor(teamID)}
@@ -577,8 +576,8 @@ local function SetupAITeamColor() --Copied from gui_chili_chat2_1.lua
 end
 
 function widget:PlayerChanged(playerID)
-	local playerName,active,isSpec,teamID = Spring.GetPlayerInfo(playerID)
-  local _,_,isDead = Spring.GetTeamInfo(teamID)
+	local playerName,active,isSpec,teamID = Spring.GetPlayerInfo(playerID, false)
+  local _,_,isDead = Spring.GetTeamInfo(teamID, false)
 	if (isSpec) then
 		if not isDead then
 			widget:AddWarning(playerName .. ' resigned')
@@ -589,7 +588,7 @@ function widget:PlayerChanged(playerID)
 end
 
 function widget:PlayerRemoved(playerID, reason)
-	local playerName = Spring.GetPlayerInfo(playerID)
+	local playerName = Spring.GetPlayerInfo(playerID, false)
 	if reason == 0 then
 		widget:AddWarning(playerName .. ' timed out')
 	elseif reason == 1 then

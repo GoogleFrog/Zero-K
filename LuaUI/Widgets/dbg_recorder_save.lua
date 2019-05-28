@@ -36,7 +36,7 @@ local unitIDtoKey = {}
 
 local white = "\255\255\255\255"
 
-function widget:UnitCommand(uID, uDID, tID, cmdID, options, params)
+function widget:UnitCommand(uID, uDID, tID, cmdID, params, options)
     if recording then        
         local frame = Spring.GetGameFrame()
         local cmdName = CMD[cmdID]
@@ -66,10 +66,15 @@ function widget:GameFrame(n)
     end
 end
 
+function widget:Initialize()
+	widgetHandler:RemoveCallIn("GameFrame")
+end
+
 function SaveUnits()
     startedRecording = Spring.GetGameFrame()
     stopRecording = Spring.GetGameFrame() + 30*recordTime
     recording = true
+    widgetHandler:UpdateCallIn("GameFrame")
     
     local units = Spring.GetAllUnits()
   
@@ -105,7 +110,7 @@ function SaveUnits()
         end
         
         if UnitDefs[uDID].isFactory then
-            local orderQueue = Spring.GetFactoryCommands(uID)
+            local orderQueue = Spring.GetFactoryCommands(uID, -1)
             for _,order in ipairs(orderQueue) do
                 order.uID = uID
 				order.key = key

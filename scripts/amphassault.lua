@@ -155,7 +155,7 @@ local gunPieces = {
 local gun_1 = 0
 local beamCount = 0
 
-local SPEED = 1.9
+local SPEED = 1.85
 
 local function Walk()
 	Signal(SIG_WALK)
@@ -167,7 +167,7 @@ local function Walk()
 
 	while true do
 		
-		local speedmult = (1 - (Spring.GetUnitRulesParam(unitID,"slowState") or 0))*SPEED
+		local speedmult = (Spring.GetUnitRulesParam(unitID,"baseSpeedMult") or 1)*SPEED
 
 		-- right
 		Turn(rfleg, x_axis, math.rad(40),math.rad(40)*speedmult)
@@ -285,30 +285,29 @@ function script.StopMoving()
 end
 
 function script.Create()
+	
 	Turn(rfleg, x_axis, math.rad(0))
 	Turn(rffoot, x_axis, math.rad(0))
 	
 	Turn(rbleg, x_axis, math.rad(0))
 	Turn(rbfoot, x_axis, math.rad(0))
+	StartThread(GG.Script.SmokeUnit, {turret})
 end
 
 function script.QueryWeapon(num)
 	if num == 1 then
-		if beamCount < 6 then
+		if beamCount <= 2 or beamCount >= 48 then
 			if beamCount == 1 then
-				Spring.SetUnitWeaponState(unitID, 1, "range", 1)
+				--Spring.SetUnitWeaponState(unitID, 1, "range", 1)
 			elseif beamCount == 2 then
-				Spring.SetUnitWeaponState(unitID, 1, "range", 550)
+				--Spring.SetUnitWeaponState(unitID, 1, "range", 600)
 			end
 			return mflare
 		else
-			if beamCount >= 24*5 then
-				beamCount = 0
-			end
 			return gunPieces[gun_1].flare
 		end
 	elseif num == 2 then
-		return torpedo
+		return turret
 	end
 end
 
@@ -316,7 +315,7 @@ function script.AimFromWeapon(num)
 	if num == 1 then
 		return turret
 	elseif num == 2 then
-		return torpedo
+		return turret
 	end
 end
 
@@ -350,12 +349,18 @@ function script.AimWeapon(num, heading, pitch)
 	end
 end
 
+function script.BlockShot(num, targetID)
+	-- Block for less than full damage and time because the target may dodge.
+	local block = (targetID and (GG.DontFireRadar_CheckBlock(unitID, targetID) or GG.OverkillPrevention_CheckBlock(unitID, targetID, 1200.1, 18))) or false
+	if not block then
+		beamCount = 0
+	end
+	return block
+end
+
 function script.Shot(num)
 	if num == 1 then
 		beamCount = beamCount + 1
-		if beamCount > 24*5 then
-			beamCount = 0
-		end
 		gun_1 = 1 - gun_1
 --		for i=1,12 do
 --			EmitSfx(gunPieces[gun_1].flare, 1024)
@@ -377,20 +382,20 @@ end
 function script.Killed(recentDamage, maxHealth)
 	local severity = recentDamage/maxHealth
 	if severity <= .50 then
-		Explode(turret, sfxNone)
-		Explode(body, sfxNone)
+		Explode(turret, SFX.NONE)
+		Explode(body, SFX.NONE)
 		return 1
 	elseif severity <= .99 then
-		Explode(body, sfxShatter)
-		Explode(turret, sfxShatter)
-		Explode(lbarrel1, sfxFall + sfxSmoke)
-		Explode(rbarrel2, sfxFall + sfxSmoke)
+		Explode(body, SFX.SHATTER)
+		Explode(turret, SFX.SHATTER)
+		Explode(lbarrel1, SFX.FALL + SFX.SMOKE)
+		Explode(rbarrel2, SFX.FALL + SFX.SMOKE)
 		return 2
 	else
-		Explode(body, sfxShatter)
-		Explode(turret, sfxShatter)
-		Explode(lbarrel1, sfxFall + sfxSmoke + sfxFire + sfxExplode)
-		Explode(rbarrel2, sfxFall + sfxSmoke + sfxFire + sfxExplode)	
+		Explode(body, SFX.SHATTER)
+		Explode(turret, SFX.SHATTER)
+		Explode(lbarrel1, SFX.FALL + SFX.SMOKE + SFX.FIRE + SFX.EXPLODE)
+		Explode(rbarrel2, SFX.FALL + SFX.SMOKE + SFX.FIRE + SFX.EXPLODE)	
 		return 2
 	end
 end

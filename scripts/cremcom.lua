@@ -18,10 +18,13 @@ local thighR = piece 'thighr'
 local forearmL = piece 'forearml' 
 local forearmR = piece 'forearmr' 
 local shinR = piece 'shinr' 
-local shinL = piece 'shinl' 
+local shinL = piece 'shinl'
+local shieldEmit = piece 'shieldemit'
 
 local smokePiece = {torso}
 local nanoPieces = {snout}
+
+local jets = {piece 'jet1', piece 'jet2', piece 'jet3', piece 'jet4'}
 
 local flares = {[0] = flareL, [1] = flareR}
 
@@ -96,7 +99,7 @@ end
 --------------------------------------------------------------------------------
 -- vars
 --------------------------------------------------------------------------------
-local isMoving, armsFree, shieldOn = false, true, true
+local isMoving, armsFree, shieldOn, inJumpMode = false, true, true, false
 local restoreHeading = 0
 local gun_num = 0
 
@@ -176,7 +179,7 @@ function script.Create()
 	Move(flareR, y_axis, -2)
 	Turn(flareL, x_axis, rightAngle)
 	Turn(flareR, x_axis, rightAngle)
-	StartThread(SmokeUnit, smokePiece)
+	StartThread(GG.Script.SmokeUnit, smokePiece)
 	Spring.SetUnitNanoPieces(unitID, nanoPieces)
 end
 
@@ -190,6 +193,28 @@ function script.StopMoving()
 	StartThread(RestorePose)
 end
 
+function beginJump() 
+	script.StopMoving()
+	GG.PokeDecloakUnit(unitID, 50)
+	inJumpMode = true
+end
+
+function jumping()
+	GG.PokeDecloakUnit(unitID, 50)
+	for i=1,4 do
+		EmitSfx(jets[i], 1028)
+	end
+end
+
+function halfJump()
+end
+
+function endJump() 
+	script.StopMoving()
+	inJumpMode = false
+	EmitSfx(base, 1029)
+end
+
 function script.AimFromWeapon(num)
 	return torso
 end
@@ -198,7 +223,7 @@ function script.QueryWeapon(num)
 	if num == 3 then 
 		return flareR 
 	elseif num == 2 or num == 4 then
-		return torso
+		return shieldEmit
 	end
 	return flareL
 end
@@ -297,28 +322,28 @@ end
 function script.Killed(recentDamage, maxHealth)
 	local severity = recentDamage/maxHealth
 	if severity < 0.5 then
-		Explode(torso, sfxNone)
-		Explode(uparmL, sfxNone)
-		Explode(uparmR, sfxNone)
-		Explode(pelvis, sfxNone)
-		Explode(thighL, sfxNone)
-		Explode(thighR, sfxNone)
-		Explode(forearmL, sfxNone)
-		Explode(forearmR, sfxNone)
-		Explode(shinR, sfxNone)
-		Explode(shinL, sfxNone)
+		Explode(torso, SFX.NONE)
+		Explode(uparmL, SFX.NONE)
+		Explode(uparmR, SFX.NONE)
+		Explode(pelvis, SFX.NONE)
+		Explode(thighL, SFX.NONE)
+		Explode(thighR, SFX.NONE)
+		Explode(forearmL, SFX.NONE)
+		Explode(forearmR, SFX.NONE)
+		Explode(shinR, SFX.NONE)
+		Explode(shinL, SFX.NONE)
 		return 1
 	else
-		Explode(torso, sfxShatter)
-		Explode(uparmL, sfxSmoke + sfxFire + sfxExplode)
-		Explode(uparmR, sfxSmoke + sfxFire + sfxExplode)
-		Explode(pelvis, sfxShatter)
-		Explode(thighL, sfxShatter)
-		Explode(thighR, sfxShatter)
-		Explode(forearmL, sfxSmoke + sfxFire + sfxExplode)
-		Explode(forearmR, sfxSmoke + sfxFire + sfxExplode)
-		Explode(shinR, sfxShatter)
-		Explode(shinL, sfxShatter)
+		Explode(torso, SFX.SHATTER)
+		Explode(uparmL, SFX.SMOKE + SFX.FIRE + SFX.EXPLODE)
+		Explode(uparmR, SFX.SMOKE + SFX.FIRE + SFX.EXPLODE)
+		Explode(pelvis, SFX.SHATTER)
+		Explode(thighL, SFX.SHATTER)
+		Explode(thighR, SFX.SHATTER)
+		Explode(forearmL, SFX.SMOKE + SFX.FIRE + SFX.EXPLODE)
+		Explode(forearmR, SFX.SMOKE + SFX.FIRE + SFX.EXPLODE)
+		Explode(shinR, SFX.SHATTER)
+		Explode(shinL, SFX.SHATTER)
 		return 2
 	end
 end

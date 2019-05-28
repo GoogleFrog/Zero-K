@@ -28,7 +28,13 @@ Object = {
   OnMouseOver     = {},
   OnMouseOut      = {},
   OnKeyPress      = {},
+  OnTextInput     = {},
   OnFocusUpdate   = {},
+  OnHide          = {},
+  OnShow          = {},
+  OnOrphan        = {},
+  OnParent        = {},
+  OnParentPost    = {}, -- Called after parent is set
 
   disableChildrenHitTest = false, --// if set childrens are not clickable/draggable etc - their mouse events are not processed
 }
@@ -132,7 +138,6 @@ end
 -- nil -> nil
 function Object:Dispose(_internal)
   if (not self.disposed) then
-
     --// check if the control is still referenced (if so it would indicate a bug in chili's gc)
     if _internal then
       if self._hlinks and next(self._hlinks) then
@@ -207,12 +212,22 @@ function Object:SetParent(obj)
 
   if (typ ~= "table") then
     self.parent = nil
+    self:CallListeners(self.OnOrphan, self)
     return
   end
-
+  
+  self:CallListeners(self.OnParent, self)
+  
+  -- Children always appear to visible when they recieve new parents because they
+  -- are added to the visible child list.
+  self.visible = true
+  self.hidden = false
+  
   self.parent = MakeWeakLink(obj, self.parent)
 
   self:Invalidate()
+
+  self:CallListeners(self.OnParentPost, self)
 end
 
 
@@ -415,6 +430,9 @@ end
 
 
 function Object:SetVisibility(visible)
+  if self.visible == visible then
+    return
+  end
   if (visible) then
     self.parent:ShowChild(self)
   else
@@ -426,12 +444,20 @@ end
 
 
 function Object:Hide()
+  local wasHidden = self.hidden
   self:SetVisibility(false)
+  if not wasHidden then
+    self:CallListeners(self.OnHide, self)
+  end
 end
 
 
 function Object:Show()
+  local wasVisible = not self.hidden
   self:SetVisibility(true)
+  if not wasVisible then
+    self:CallListeners(self.OnShow, self)
+  end
 end
 
 
@@ -445,6 +471,10 @@ function Object:SetChildLayer(child,layer)
   child = UnlinkSafe(child)
   local children = self.children
 
+  if layer < 0 then
+    layer = layer + #children + 1
+  end
+  
   layer = math.min(layer, #children)
 
   --// it isn't at the same pos anymore, search it!
@@ -465,6 +495,9 @@ function Object:SetLayer(layer)
   end
 end
 
+function Object:SendToBack()
+  self:SetLayer(-1)
+end
 
 function Object:BringToFront()
   self:SetLayer(1)
@@ -740,21 +773,44 @@ function Object:LocalToClient(x,y)
   return x,y
 end
 
+-- LocalToScreen does not do what it says it does because 
+-- self:LocalToParent(x,y) = 2*self.x, 2*self.y
+-- However, too much chili depends on the current LocalToScreen
+-- so this working version exists for widgets.
+function Object:CorrectlyImplementedLocalToScreen(x,y)
+  if (not self.parent) then
+    return x,y
+  end
+  return (self.parent):ClientToScreen(x,y)
+end
 
 function Object:LocalToScreen(x,y)
   if (not self.parent) then
     return x,y
   end
-  --Spring.Echo((not self.parent) and debug.traceback())
   return (self.parent):ClientToScreen(self:LocalToParent(x,y))
 end
 
+function Object:UnscaledLocalToScreen(x,y)
+  if (not self.parent) then
+    return x,y
+  end
+  --Spring.Echo((not self.parent) and debug.traceback())
+  return (self.parent):UnscaledClientToScreen(self:LocalToParent(x,y))
+end
 
 function Object:ClientToScreen(x,y)
   if (not self.parent) then
     return self:ClientToParent(x,y)
   end
   return (self.parent):ClientToScreen(self:ClientToParent(x,y))
+end
+
+function Object:UnscaledClientToScreen(x,y)
+  if (not self.parent) then
+    return self:ClientToParent(x,y)
+  end
+  return (self.parent):UnscaledClientToScreen(self:ClientToParent(x,y))
 end
 
 
@@ -783,6 +839,14 @@ function Object:LocalToObject(x, y, obj)
   end
   x, y = self:LocalToParent(x, y)
   return self.parent:LocalToObject(x, y, obj)
+end
+
+
+function Object:IsVisibleOnScreen()
+  if (not self.parent) or (not self.visible) then
+    return false
+  end
+  return (self.parent):IsVisibleOnScreen()
 end
 
 --//=============================================================================
@@ -890,6 +954,15 @@ end
 
 function Object:KeyPress(...)
   if (self:CallListeners(self.OnKeyPress, ...)) then
+    return self
+  end
+
+  return false
+end
+
+
+function Object:TextInput(...)
+  if (self:CallListeners(self.OnTextInput, ...)) then
     return self
   end
 

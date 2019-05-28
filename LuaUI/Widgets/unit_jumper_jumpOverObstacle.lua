@@ -24,7 +24,7 @@ local spGetUnitIsStunned = Spring.GetUnitIsStunned
 local spGetGameSeconds = Spring.GetGameSeconds
 ------------------------------------------------------------
 ------------------------------------------------------------
-local gaussUnitDefID = UnitDefNames["armpb"].id
+local gaussUnitDefID = UnitDefNames["turretgauss"].id
 local myTeamID
 local jumperAddInfo={}
 --Spread job stuff: (spread looping across 1 second)
@@ -44,8 +44,8 @@ local jumpersUnitID = {}
 local jumperDefs = VFS.Include("LuaRules/Configs/jump_defs.lua")
 
 local exclusions = {
-	UnitDefNames["corsumo"].id, -- has AoE damage on jump, could harm allies
-	--UnitDefNames["corsktl"].id -- jump is precious
+	UnitDefNames["jumpsumo"].id, -- has AoE damage on jump, could harm allies
+	--UnitDefNames["jumpbomb"].id -- jump is precious
 }
 
 for i = 1, #exclusions do
@@ -53,7 +53,7 @@ for i = 1, #exclusions do
 end
 
 function widget:Initialize()
-	local _, _, spec, teamID = Spring.GetPlayerInfo(Spring.GetMyPlayerID())
+	local _, _, spec, teamID = Spring.GetPlayerInfo(Spring.GetMyPlayerID(), false)
 		if spec then
 		widgetHandler:RemoveWidget()
 		return false
@@ -158,14 +158,14 @@ function widget:GameFrame(n)
 							cmd.params[1] == effectedUnit[unitID].cmdOne.x and
 							cmd.params[2] == effectedUnit[unitID].cmdOne.y and
 							cmd.params[3] == effectedUnit[unitID].cmdOne.z then
-								extraCmd1 = {CMD.REMOVE, {cmd.tag},{"shift"}}
+								extraCmd1 = {CMD.REMOVE, {cmd.tag}, CMD.OPT_SHIFT}
 								jumpCmdPos = i
 							end
 							if cmd.id == effectedUnit[unitID].cmdTwo.id and
 							cmd.params[1] == effectedUnit[unitID].cmdTwo.x and
 							cmd.params[2] == effectedUnit[unitID].cmdTwo.y and
 							cmd.params[3] == effectedUnit[unitID].cmdTwo.z then
-								extraCmd2 = {CMD.REMOVE, {cmd.tag},{"shift"}}
+								extraCmd2 = {CMD.REMOVE, {cmd.tag}, CMD.OPT_SHIFT}
 								jumpCmdPos = jumpCmdPos or i
 								break
 							end
@@ -203,12 +203,12 @@ function widget:GameFrame(n)
 						if totalTimeWithJump < normalPathTime then	
 							local commandArray = {[1]=nil,[2]=nil,[3]=nil,[4]=nil}
 							if (math.abs(enterPoint_X-px)>50 or math.abs(enterPoint_Z-pz)>50) then
-								commandArray[1]= {CMD.INSERT, {0, CMD.MOVE, CMD.OPT_INTERNAL, enterPoint_X,enterPoint_Y,enterPoint_Z}, {"alt"}}
-								commandArray[2]= {CMD.INSERT, {0, CMD_JUMP, CMD.OPT_INTERNAL, exitPoint_X,exitPoint_Y,exitPoint_Z}, {"alt"}}
+								commandArray[1]= {CMD.INSERT, {0, CMD_RAW_MOVE, CMD.OPT_INTERNAL, enterPoint_X,enterPoint_Y,enterPoint_Z}, CMD.OPT_ALT}
+								commandArray[2]= {CMD.INSERT, {0, CMD_JUMP, CMD.OPT_INTERNAL, exitPoint_X,exitPoint_Y,exitPoint_Z}, CMD.OPT_ALT}
 								commandArray[3]= extraCmd2
 								commandArray[4]= extraCmd1
 								effectedUnit[unitID].cmdCount = 2
-								effectedUnit[unitID].cmdOne.id = CMD.MOVE
+								effectedUnit[unitID].cmdOne.id = CMD_RAW_MOVE
 								effectedUnit[unitID].cmdOne.x = enterPoint_X
 								effectedUnit[unitID].cmdOne.y = enterPoint_Y
 								effectedUnit[unitID].cmdOne.z = enterPoint_Z
@@ -216,9 +216,9 @@ function widget:GameFrame(n)
 								effectedUnit[unitID].cmdTwo.x = exitPoint_X
 								effectedUnit[unitID].cmdTwo.y = exitPoint_Y
 								effectedUnit[unitID].cmdTwo.z = exitPoint_Z
-								issuedOrderTo[unitID] = {CMD.MOVE,enterPoint_X,enterPoint_Y,enterPoint_Z}
+								issuedOrderTo[unitID] = {CMD_RAW_MOVE,enterPoint_X,enterPoint_Y,enterPoint_Z}
 							else
-								commandArray[1]= {CMD.INSERT, {0, CMD_JUMP, CMD.OPT_INTERNAL, exitPoint_X,exitPoint_Y,exitPoint_Z}, {"alt"}}
+								commandArray[1]= {CMD.INSERT, {0, CMD_JUMP, CMD.OPT_INTERNAL, exitPoint_X,exitPoint_Y,exitPoint_Z}, CMD.OPT_ALT}
 								commandArray[2]= extraCmd2
 								commandArray[3]= extraCmd1
 								effectedUnit[unitID].cmdCount = 1
@@ -391,7 +391,7 @@ function ConvertCMDToMOVE(command)
 		return nil
 	end
 
-	if command.id == CMD.MOVE 
+	if command.id == CMD_RAW_MOVE 
 	or command.id == CMD.PATROL 
 	or command.id == CMD.FIGHT
 	or command.id == CMD.JUMP
@@ -401,39 +401,39 @@ function ConvertCMDToMOVE(command)
 			if not x then --outside LOS and radar
 				return nil
 			end
-			command.id = CMD.MOVE
+			command.id = CMD_RAW_MOVE
 			command.params[1] = x
 			command.params[2] = y
 			command.params[3] = z
 			return command
 		else
-			command.id = CMD.MOVE
+			command.id = CMD_RAW_MOVE
 			return command
 		end
 	end
 	if command.id == CMD.RECLAIM
 	or command.id == CMD.REPAIR
 	or command.id == CMD.GUARD
-	or command.id == CMD.RESSURECT then
+	or command.id == CMD.RESURRECT then
 		local isPossible2PartAreaCmd = command.params[5]
 		if not command.params[4] or isPossible2PartAreaCmd then --if not area-command or the is the 2nd part of area-command (1st part have radius at 4th-param, 2nd part have unitID/featureID at 1st-param and radius at 5th-param)
 			if not command.params[2] or isPossible2PartAreaCmd then
 				local x,y,z
 				if command.id == CMD.REPAIR or command.id == CMD.GUARD then
 					x,y,z = GetUnitOrFeaturePosition(command.params[1])
-				elseif command.id == CMD.RECLAIM or command.id == CMD.RESSURECT then
+				elseif command.id == CMD.RECLAIM or command.id == CMD.RESURRECT then
 					x,y,z = GetUnitOrFeaturePosition(command.params[1])
 				end
 				if not x then
 					return nil
 				end
-				command.id = CMD.MOVE
+				command.id = CMD_RAW_MOVE
 				command.params[1] = x
 				command.params[2] = y
 				command.params[3] = z
 				return command
 			else
-				command.id = CMD.MOVE
+				command.id = CMD_RAW_MOVE
 				return command
 			end
 		else
@@ -444,7 +444,7 @@ function ConvertCMDToMOVE(command)
 		if command.params[3]==nil then --is building unit in factory
 			return nil
 		end
-		command.id = CMD.MOVE
+		command.id = CMD_RAW_MOVE
 		return command
 	end
 	if command.id == CMD_WAIT_AT_BEACON then
@@ -459,7 +459,7 @@ function GetWaypointDistance(unitID,moveID,queue,px,py,pz,isAttackCmd,weaponRang
 		return 99999
 	end
 	local v = queue
-	if (v.id == CMD.MOVE) then 
+	if (v.id == CMD.MOVE or v.id == CMD_RAW_MOVE) then 
 		local reachable = true --always assume target reachable
 		local waypoints
 		if moveID then --unit has compatible moveID?
@@ -515,7 +515,7 @@ function widget:UnitFinished(unitID,unitDefID,unitTeam)
 	end
 end
 
-function widget:UnitCommand(unitID, unitDefID, unitTeam, cmdID, cmdOpts, cmdParams)
+function widget:UnitCommand(unitID, unitDefID, unitTeam, cmdID, cmdParams, cmdOptions)
 	if myTeamID==unitTeam and jumperDefs[unitDefID] then
 		if (cmdID ~= CMD.INSERT) then
 			if not jumpersUnitID[unitID] then

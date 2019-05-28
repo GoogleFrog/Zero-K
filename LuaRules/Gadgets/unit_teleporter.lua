@@ -7,7 +7,7 @@ function gadget:GetInfo()
     date      = "29 Feb 2012",
     license   = "GNU GPL, v2 or later",
     layer     = 0,
-    enabled   = not (Game.version:find('91.0') == 1)  --  loaded by default?
+    enabled   = true  --  loaded by default?
   }
 end
 
@@ -21,6 +21,15 @@ local BEACON_WAIT_RANGE_MOVE = 150
 local BEACON_TELEPORT_RADIUS = 200
 local BEACON_TELEPORT_RADIUS_SQR = BEACON_TELEPORT_RADIUS^2
 
+-- Used in synced and unsynced
+local canTeleport = {}
+for i = 1, #UnitDefs do
+	local ud = UnitDefs[i]
+	if ud.isFactory or not (ud.isImmobile or ud.isStrafingAirUnit) then
+		canTeleport[i] = true
+	end
+end
+
 if (gadgetHandler:IsSyncedCode()) then
 
 -------------------------------------------------------------------------------------
@@ -29,7 +38,7 @@ if (gadgetHandler:IsSyncedCode()) then
 -------------------------------------------------------------------------------------
 -------------------------------------------------------------------------------------
 
-local getMovetype = Spring.Utilities.getMovetype
+local GiveClampedMoveGoalToUnit = Spring.Utilities.GiveClampedMoveGoalToUnit
 
 local placeBeaconCmdDesc = {
 	id      = CMD_PLACE_BEACON,
@@ -47,6 +56,7 @@ local waitAtBeaconCmdDesc = {
 	cursor  = 'Load units',
 	action  = 'beaconqueue',
 	tooltip = 'Wait to be teleported by a beacon.',
+	hidden  = true,
 }
 
 -------------------------------------------------------------------------------------
@@ -68,21 +78,14 @@ local offset = {
 -------------------------------------------------------------------------------------
 -------------------------------------------------------------------------------------
 
-local teleID = {count = 0, data = {}}
-local tele = {}
-local beacon = {}
+local teleID = {count = 0, data = {}}	-- data = {djinnID1, djinnID2, ...}
+local tele = {}	-- {[unitID] = {Djinn's data}}
+local beacon = {}	-- [unitID] = {link = Djinn ID, x = x, z = z}
+local orphanedBeacons = {}	-- array of beacon IDs, beacons are destroyed every gameframe
 
-local isPlacingBeacon = {} --remember if a unit is currently trying to teleport a beacon bridge. Purpose is for compatibility with "repeat" state.
-local beaconWaiter = {}
-local teleportingUnit = {}
+local beaconWaiter = {}	-- {[waiting unit ID] = {bunch of stuff}}
+local teleportingUnit = {}	-- {[teleportiee ID] = Djinn ID}
 
-local canTeleport = {}
-for i=1,#UnitDefs do
-	local ud = UnitDefs[i]
-	if not (ud.speed == 0 or getMovetype(ud) == 0) then
-		canTeleport[i] = true
-	end
-end
 --[[
 local nearRead = 1
 local nearWrite = 2
@@ -118,6 +121,9 @@ local function changeSpeed(tid, bid, speed)
 end
 
 local function interruptTeleport(unitID, doNotChangeSpeed)
+	if not tele[unitID] then
+		return
+	end
 	if tele[unitID].teleportiee then
 		teleportingUnit[tele[unitID].teleportiee] = nil
 		tele[unitID].teleportiee = false
@@ -160,17 +166,18 @@ function tele_undeployTeleport(unitID)
 	Spring.SetUnitRulesParam(unitID, "deploy", 0)
 end
 
-function tele_createBeacon(unitID,x,z)
-	isPlacingBeacon[unitID]=nil
+function tele_createBeacon(unitID, x, z, beaconID)
 	local y = Spring.GetGroundHeight(x,z)
 	local place, feature = Spring.TestBuildOrder(beaconDef, x, y, z, 1)
 	changeSpeed(unitID, nil, 1)
-	if place == 2 and feature == nil then
+	if beaconID or (place == 2 and feature == nil) then
 		if tele[unitID].link and Spring.ValidUnitID(tele[unitID].link) then
 			Spring.DestroyUnit(tele[unitID].link, true)
 		end
-		Spring.PlaySoundFile("sounds/misc/teleport2.wav", 10, x, Spring.GetGroundHeight(x,z) or 0, z)
-		local beaconID = Spring.CreateUnit(beaconDef, x, y, z, 1, Spring.GetUnitTeam(unitID))
+		if not beaconID then
+			GG.PlayFogHiddenSound("sounds/misc/teleport2.wav", 10, x, Spring.GetGroundHeight(x,z) or 0, z)
+		end
+		local beaconID = beaconID or Spring.CreateUnit(beaconDef, x, y, z, 1, Spring.GetUnitTeam(unitID))
 		if beaconID then
 			Spring.SetUnitPosition(beaconID, x, y, z)
 			Spring.SetUnitNeutral(beaconID,true)
@@ -179,8 +186,8 @@ function tele_createBeacon(unitID,x,z)
 			Spring.SetUnitRulesParam(beaconID, "connectto", unitID)
 		end
 	end
-	Spring.GiveOrderToUnit(unitID,CMD.WAIT, {}, {})
-	Spring.GiveOrderToUnit(unitID,CMD.WAIT, {}, {})
+	Spring.GiveOrderToUnit(unitID,CMD.WAIT, {}, 0)
+	Spring.GiveOrderToUnit(unitID,CMD.WAIT, {}, 0)
 end
 
 local function undeployTeleport(unitID)
@@ -211,55 +218,45 @@ local function isUnitDisabled(unitID)
 	return (Spring.GetUnitRulesParam(unitID, "disarmed") == 1) or select(1, Spring.GetUnitIsStunned(unitID))
 end
 
-function gadget:AllowCommand_GetWantedCommand()	
-	return true
-end
-
-function gadget:AllowCommand_GetWantedUnitDefID()
-	
-	return canTeleport
-end
-
-function gadget:AllowCommand(unitID, unitDefID, teamID,
-                             cmdID, cmdParams, cmdOptions)
-	
-	if teleportingUnit[unitID] and not (cmdID == CMD.INSERT or cmdOptions.shift) and cmdID ~= CMD.REMOVE and cmdID ~= CMD.FIRESTATE and cmdID ~= CMD.MOVESTATE and cmdID ~= CMD_WANT_CLOAK then
+function gadget:AllowCommand(unitID, unitDefID, teamID, cmdID, cmdParams, cmdOptions)
+	if teleportingUnit[unitID] and not (cmdID == CMD.INSERT or cmdOptions.shift) and cmdID ~= CMD.REMOVE and cmdID ~= CMD.FIRE_STATE and cmdID ~= CMD.MOVE_STATE and cmdID ~= CMD_WANT_CLOAK then
 		interruptTeleport(teleportingUnit[unitID])
 	end
 	
-	local ud = UnitDefs[unitDefID]
-	
-	if not ud
-	  or
-	    (not canTeleport[unitDefID])
-      or
-	    not (
-		  (cmdID == CMD.GUARD and cmdParams[1] and beacon[cmdParams[1]])
-		or 
-		  (cmdID == CMD.INSERT and cmdParams[2] == CMD.GUARD and beacon[cmdParams[4]])
-		) then
-		return true
+	if cmdID == CMD.STOP and not (cmdID == CMD.INSERT or cmdOptions.shift) and tele[unitID] then
+		local func = Spring.UnitScript.GetScriptEnv(unitID).StopCreateBeacon
+		Spring.UnitScript.CallAsUnit(unitID, func)
 	end
-	
-	local bid = (cmdID == CMD.INSERT and cmdParams[4]) or cmdParams[1]
-	
-	if Spring.GetUnitAllyTeam(unitID) ~= Spring.GetUnitAllyTeam(bid) then
+
+	if cmdID == CMD.INSERT then
+		cmdID = cmdParams[2]
+	end
+
+	if cmdID == CMD_WAIT_AT_BEACON and not canTeleport[unitDefID] then
 		return false
 	end
 	
-	-- NOTE: param 4 is the first real command param for command insert
-	beaconWaiter[unitID] = {lastSetMove = false,}
-	local bx,by,bz = Spring.GetUnitPosition(bid)
-	local params = {bx, by, bz, bid, Spring.GetGameFrame()}
-	
-	if cmdID == CMD.INSERT then
-		Spring.GiveOrderToUnit(unitID,CMD.INSERT,{cmdParams[1],CMD_WAIT_AT_BEACON,cmdParams[3], unpack(params)}, {"alt"})
-	else
-		local opt = (cmdOptions.shift and {"shift"}) or {}
-		Spring.GiveOrderToUnit(unitID,CMD_WAIT_AT_BEACON, params, opt)
+	return true
+end
+
+local function Teleport_AllowCommand(unitID, unitDefID, cmdID, cmdParams, cmdOptions)
+	return gadget:AllowCommand(unitID, unitDefID, false, cmdID, cmdParams, cmdOptions)
+end
+
+-- pick a point on map (towards random one of 8 directions) to teleport to
+-- ud is teleportiee's unitdef, tx and tz are Djinn's position
+local function GetTeleTargetPos(ud, tx, tz)
+	local size = ud.xsize
+	local startCheck = math.floor(math.random(8))
+	local direction = (math.random() < 0.5 and -1) or 1
+	for j = 0, 7 do
+		local spot = (j*direction+startCheck)%8
+		local place, feature = Spring.TestBuildOrder(ud.id, tx + offset[spot].x*(size*4+40), 0 ,tz + offset[spot].z*(size*4+40), 1)
+		if (place == 2 and feature == nil) or ud.canFly then
+			return spot
+		end
 	end
-	
-	return false
+	return nil
 end
 -------------------------------------------------------------------------------------
 -------------------------------------------------------------------------------------
@@ -268,7 +265,6 @@ end
 
 function gadget:CommandFallback(unitID, unitDefID, teamID,    -- keeps getting 
                                 cmdID, cmdParams, cmdOptions) -- called until
-	
 	if cmdID == CMD_PLACE_BEACON and tele[unitID] then
 		local f = Spring.GetGameFrame()
 		--if not (tele[unitID].lastSetMove and tele[unitID].lastSetMove + 16 == f) then
@@ -276,69 +272,84 @@ function gadget:CommandFallback(unitID, unitDefID, teamID,    -- keeps getting
 		--end
 		tele[unitID].lastSetMove = f
 		
-		local tx, ty, tz = Spring.GetUnitBasePosition(unitID)
+		local tx, ty, tz = Spring.GetUnitPosition(unitID)
 		
 		local ux,_,uz = Spring.GetUnitPosition(unitID)
-		if --[[BEACON_PLACE_RANGE_SQR > (cmdParams[1]-ux)^2 + (cmdParams[3]-uz)^2 and]] ty == Spring.GetGroundHeight(tx, tz) then
+		if ty == Spring.GetGroundHeight(tx, tz) then
 			local cx, cz = math.floor((cmdParams[1]+8)/16)*16, math.floor((cmdParams[3]+8)/16)*16
-			local posString = cx..","..cz
 			local inLos = Spring.IsPosInLos(cx,0,cz,Spring.GetUnitAllyTeam(unitID))
-			local blocked = false --assume no obstacle in target location
+			
+			local beaconX = Spring.GetUnitRulesParam(unitID, "tele_creating_beacon_x")
+			local beaconZ = Spring.GetUnitRulesParam(unitID, "tele_creating_beacon_z")
+			
+			if cx == beaconX and cz == beaconZ then
+				return true, false -- command was used but don't remove it
+			end
+			
 			if (inLos) then --if LOS: check for obstacle
 				local place, feature = Spring.TestBuildOrder(beaconDef, cx, 0, cz, 1)
 				if not (place == 2 and feature == nil) then
-					blocked = true
+					return true, true -- command was used and remove it
 				end
 			end
 			
-			if not blocked then --if no obstacle: check for duplicate
-				local prvsOrder = isPlacingBeacon[unitID] or ""
-				local duplicate = (prvsOrder == posString)
-				local myBeacon = Spring.GetUnitsInRectangle(cx-1,cz-1,cx+1,cz+1,teamID)
-				if duplicate or #myBeacon>0 then --check if beacon is already in progress here
-					blocked = true 
-				end
+			local myBeacon = Spring.GetUnitsInRectangle(cx-1,cz-1,cx+1,cz+1,teamID)
+			if #myBeacon > 0 then -- check if beacon is already in progress here
+				return true, true -- command was used and remove it
 			end
 			
-			if not blocked then --if no obstacle & no duplicate: create beacon
-				isPlacingBeacon[unitID] = posString
-				Spring.SetUnitMoveGoal(unitID, ux,0,uz)
-				Spring.MoveCtrl.Enable(unitID)
-				Spring.SetUnitVelocity(unitID, 0, 0, 0)
-				local func = Spring.UnitScript.GetScriptEnv(unitID).Create_Beacon
-				Spring.UnitScript.CallAsUnit(unitID,func,cx,cz)
-			end
-			return true, true -- command was used and remove it
+			local func = Spring.UnitScript.GetScriptEnv(unitID).Create_Beacon
+			Spring.UnitScript.CallAsUnit(unitID,func,cx,cz)
+			
+			return true, false -- command was used but don't remove it
 		end
 		
 		return true, false -- command was used but don't remove it
 	end
 	
-	if cmdID == CMD_WAIT_AT_BEACON and beaconWaiter[unitID] then
-		
-		local ud = UnitDefs[UnitDefID]
-		
-		if ud and ((not beacon[cmdParams[4]]) or ud.speed == 0 or getMovetype(ud) == 0) then
-			return true, true -- command was used and remove it
+	if cmdID == CMD_WAIT_AT_BEACON then
+		local beaconID = cmdParams[1]
+
+		if not beaconID
+		or not beacon[beaconID]
+		or not Spring.AreTeamsAllied(teamID, Spring.GetUnitTeam(beaconID))
+		then
+			-- don't remove command if we're in game load
+			-- at this point the commands have been loaded but beacon table hasn't been regenerated
+			return true, Spring.GetGameRulesParam("loadPurge") == 1
 		end
-		
+
+		if not (beaconWaiter[unitID] and beaconWaiter[unitID].beaconID == beaconID) then
+			local bx,by,bz = Spring.GetUnitPosition(beaconID)
+			if bx then
+				beaconWaiter[unitID] = {
+					lastSetMove = false,
+					beaconID = beaconID,
+					frame = Spring.GetGameFrame(),
+					bx = bx,
+					by = by,
+					bz = bz,
+				}
+			else
+				beaconWaiter[unitID] = nil
+				return true, true -- command was used and remove it
+			end
+		end
+
+		local waitData = beaconWaiter[unitID]
+
 		local f = Spring.GetGameFrame()
 		if not ((beaconWaiter[unitID].lastSetMove and beaconWaiter[unitID].lastSetMove + 16 == f)) then
-			Spring.SetUnitMoveGoal(unitID, cmdParams[1], cmdParams[2], cmdParams[3], BEACON_WAIT_RANGE_MOVE)
+			Spring.SetUnitMoveGoal(unitID, waitData.bx, waitData.by, waitData.bz, BEACON_WAIT_RANGE_MOVE)
 		end
 		beaconWaiter[unitID].lastSetMove = f
 	
 		local ux,_,uz = Spring.GetUnitPosition(unitID)
-		if BEACON_TELEPORT_RADIUS_SQR > (cmdParams[1]-ux)^2 + (cmdParams[3]-uz)^2 then
-			
+		if BEACON_TELEPORT_RADIUS_SQR > (waitData.bx - ux)^2 + (waitData.bz - uz)^2 then
 			if not beaconWaiter[unitID].waitingAtBeacon then
-				Spring.SetUnitMoveGoal(unitID, ux,0,uz)
+				Spring.SetUnitMoveGoal(unitID, ux, 0, uz)
 				beaconWaiter[unitID].waitingAtBeacon = true
 			end
-			
-			--local bid = cmdParams[4]
-			--local tid = beacon[bid].link
-			--nearBeacon[bid] = true
 		elseif teleportingUnit[unitID] then
 			interruptTeleport(teleportingUnit[unitID])
 		end
@@ -350,7 +361,15 @@ function gadget:CommandFallback(unitID, unitDefID, teamID,    -- keeps getting
 end
 
 function gadget:GameFrame(f)
+	-- kill orphaned beacons
+	if #orphanedBeacons > 0 then
+		for i = 1, #orphanedBeacons do
+			Spring.DestroyUnit(orphanedBeacons[i], true)
+		end
+		orphanedBeacons = {}
+	end
 	
+	-- progress teleport
 	for i = 1, teleID.count do
 		local tid = teleID.data[i]	
 		local bid = tele[tid].link
@@ -360,23 +379,17 @@ function gadget:GameFrame(f)
 			if flying then
 				interruptTeleport(tid)
 			else
-				local stunned_or_inbuild = isUnitDisabled(tid) or flying or isUnitDisabled(bid) or select(3, Spring.GetUnitIsStunned(tele[tid].teleportiee))
+				local stunned_or_inbuild = isUnitDisabled(tid) or isUnitDisabled(bid) or select(3, Spring.GetUnitIsStunned(tele[tid].teleportiee))
 				if stunned_or_inbuild then
-					if not tele[tid].stunned then
-						tele[tid].stunned = true
-						Spring.SetUnitRulesParam(tid,"teleportend",(tele[tid].teleFrame - f)/tele[tid].cost)
-						Spring.SetUnitRulesParam(bid,"teleportend",(tele[tid].teleFrame - f)/tele[tid].cost)
-					end
-					
 					tele[tid].teleFrame = tele[tid].teleFrame + 1
+					Spring.SetUnitRulesParam(tid,"teleportend", tele[tid].teleFrame)
+					Spring.SetUnitRulesParam(bid,"teleportend", tele[tid].teleFrame)
 				elseif tele[tid].stunned then
 					checkFrame[tele[tid].teleFrame] = true
-					
 					Spring.SetUnitRulesParam(tid,"teleportend",tele[tid].teleFrame)
 					Spring.SetUnitRulesParam(bid,"teleportend",tele[tid].teleFrame)
-					
-					tele[tid].stunned = false
 				end
+				tele[tid].stunned = stunned_or_inbuild
 			end
 		end
 	end
@@ -394,19 +407,26 @@ function gadget:GameFrame(f)
 			if bid and tele[tid].deployed then
 				
 				local teleFinished = tele[tid].teleFrame and f >= tele[tid].teleFrame
-			
+				
+				-- complete teleport
 				if teleFinished then
-					
 					local teleportiee = tele[tid].teleportiee
-					
-					local cQueue = Spring.GetCommandQueue(teleportiee, 1)
-					if cQueue and #cQueue > 0 and cQueue[1].id == CMD_WAIT_AT_BEACON and cQueue[1].params[4] == bid then
+					local cmdID, cmdTag, cmdParam_1
+					if Spring.Utilities.COMPAT_GET_ORDER then
+						local queue = Spring.GetCommandQueue(teleportiee, 1)
+						if queue and queue[1] then
+							cmdID, cmdTag, cmdParam_1 = queue[1].id, queue[1].tag, queue[1].params[1]
+						end
+					else
+						cmdID, _, cmdTag, cmdParam_1 = Spring.GetUnitCurrentCommand(teleportiee)
+					end
+					if cmdID and cmdID == CMD_WAIT_AT_BEACON and cmdParam_1 == bid then
 						local ud = Spring.GetUnitDefID(teleportiee)
 						ud = ud and UnitDefs[ud]
 						if ud then
 							local size = ud.xsize
-							local ux,uy,uz = Spring.GetUnitPosition(teleportiee)		
-							local tx, _, tz = Spring.GetUnitPosition(tid)
+							local _,_,_,ux, uy, uz = Spring.GetUnitPosition(teleportiee, true)
+							local _,_,_,tx, _, tz = Spring.GetUnitPosition(tid, true)
 							local dx, dz = tx + offset[tele[tid].offsetIndex].x*(size*4+40), tz + offset[tele[tid].offsetIndex].z*(size*4+40)
 							local dy 
 							
@@ -416,11 +436,10 @@ function gadget:GameFrame(f)
 								dy = uy - Spring.GetGroundHeight(ux,uz) + Spring.GetGroundHeight(dx,dz)
 							end
 							
-							Spring.PlaySoundFile("sounds/misc/teleport.wav", 10, ux, uy, uz)
-							Spring.PlaySoundFile("sounds/misc/teleport2.wav", 10, dx, dy, dz)
+							GG.PlayFogHiddenSound("sounds/misc/teleport.wav", 10, ux, uy, uz)
+							GG.PlayFogHiddenSound("sounds/misc/teleport2.wav", 10, dx, dy, dz)
 							
 							Spring.SpawnCEG("teleport_out", ux, uy, uz, 0, 0, 0, size)
-							
 							
 							teleportingUnit[teleportiee] = nil
 							tele[tid].teleportiee = nil
@@ -433,21 +452,23 @@ function gadget:GameFrame(f)
 								Spring.MoveCtrl.Disable(teleportiee)
 							end
 							
-							local ux, uy, uz = Spring.GetUnitPosition(teleportiee)
-							Spring.SpawnCEG("teleport_in", ux, uy, uz, 0, 0, 0, size)
+							-- actual pos might not match nominal destination due to floating amphs
+							local ax, ay, az = Spring.GetUnitPosition(teleportiee)
+							Spring.SpawnCEG("teleport_in", ax, ay, az, 0, 0, 0, size)
 							
-							Spring.SetUnitMoveGoal(teleportiee, dx,0,dz)
+							local mx, mz = tx + offset[tele[tid].offsetIndex].x*(size*4 + 120), tz + offset[tele[tid].offsetIndex].z*(size*4 + 120)
+							GiveClampedMoveGoalToUnit(teleportiee, mx, mz)
 							
-							Spring.GiveOrderToUnit(teleportiee,CMD.REMOVE, {cQueue[1].tag}, {})
-							
-							Spring.GiveOrderToUnit(teleportiee,CMD.WAIT, {}, {})
-							Spring.GiveOrderToUnit(teleportiee,CMD.WAIT, {}, {})
+							Spring.GiveOrderToUnit(teleportiee, CMD.WAIT, {}, 0)
+							Spring.GiveOrderToUnit(teleportiee, CMD.WAIT, {}, 0)
+							Spring.GiveOrderToUnit(teleportiee, CMD.REMOVE, {cmdTag}, 0)
 						end
 					end
 					
 					interruptTeleport(tid, true)
 				end
-			
+				
+				-- pick a unit to start teleporting
 				if not tele[tid].teleFrame then
 				
 					local bx, bz = beacon[bid].x, beacon[bid].z
@@ -461,24 +482,27 @@ function gadget:GameFrame(f)
 					
 					for i = 1, #units do
 						local nid = units[i]
-						if allyTeam == Spring.GetUnitAllyTeam(nid) then
-							local cQueue = Spring.GetCommandQueue(nid, 1)
-							if #cQueue > 0 and cQueue[1].id == CMD_WAIT_AT_BEACON and cQueue[1].params[4] == bid and 
-									((not bestPriority) or cQueue[1].params[5] < bestPriority) then
-								local ud = Spring.GetUnitDefID(nid)
-								ud = ud and UnitDefs[ud]
-								if ud then
-									local size = ud.xsize
-									local startCheck = math.floor(math.random(8))
-									local direction = (math.random() < 0.5 and -1) or 1
-									for j = 0, 7 do
-										local spot = (j*direction+startCheck)%8
-										local place, feature = Spring.TestBuildOrder(ud.id, tx + offset[spot].x*(size*4+40), 0 ,tz + offset[spot].z*(size*4+40), 1)
-										if (place == 2 and feature == nil) or ud.canFly then
+						if allyTeam == Spring.GetUnitAllyTeam(nid) and beaconWaiter[nid] then
+							local cmdID, cmdParam_1
+							if Spring.Utilities.COMPAT_GET_ORDER then
+								local queue = Spring.GetCommandQueue(nid, 1)
+								if queue and queue[1] then
+									cmdID, cmdParam_1 = queue[1].id, queue[1].params[1]
+								end
+							else
+								cmdID, _, _, cmdParam_1 = Spring.GetUnitCurrentCommand(nid)
+							end
+							if cmdID and cmdID == CMD_WAIT_AT_BEACON and cmdParam_1 == bid then
+								local priority = beaconWaiter[nid].frame
+								if ((not bestPriority) or priority < bestPriority) then
+									local ud = Spring.GetUnitDefID(nid)
+									ud = ud and UnitDefs[ud]
+									if ud then
+										local spot = GetTeleTargetPos(ud, tx, tz)
+										if spot then
 											teleportiee = nid
-											bestPriority = cQueue[1].params[5]
+											bestPriority = priority
 											teleTarget = spot
-											break
 										end
 									end
 								end
@@ -492,9 +516,9 @@ function gadget:GameFrame(f)
 						local flying = isUnitFlying(tid)
 						if ud and not flying then
 
-							local mass = Spring.GetUnitRulesParam(teleportiee, "effectiveMass") or ud.mass
+							local mass = Spring.GetUnitRulesParam(teleportiee, "massOverride") or ud.mass
 
-							local cost = math.floor(mass*tele[tid].throughput)
+							local cost = math.floor(mass/tele[tid].throughput)
 							--Spring.Echo(cost/30)
 							tele[tid].teleportiee = teleportiee
 							Spring.SetUnitRulesParam(tid, "teleportiee", teleportiee)
@@ -547,8 +571,11 @@ function gadget:UnitCreated(unitID, unitDefID, unitTeam)
 			deployed = false,
 			cost = false,
 			stunned = isUnitDisabled(unitID),
-			throughput = tonumber(UnitDefs[unitDefID].customParams.teleporter_throughput) / 30,
+			throughput = tonumber(UnitDefs[unitDefID].customParams.teleporter_throughput) / Game.gameSpeed,
 		}
+	end
+	if canTeleport[unitDefID] then
+		Spring.InsertUnitCmdDesc(unitID, waitAtBeaconCmdDesc)
 	end
 end
 
@@ -556,8 +583,8 @@ end
 function gadget:UnitTaken(unitID, unitDefID, oldTeamID, teamID)
 	
 	if beacon[unitID] then
-		local _,_,_,_,_,oldA = Spring.GetTeamInfo(oldTeamID)
-		local _,_,_,_,_,newA = Spring.GetTeamInfo(teamID)
+		local _,_,_,_,_,oldA = Spring.GetTeamInfo(oldTeamID, false)
+		local _,_,_,_,_,newA = Spring.GetTeamInfo(teamID, false)
 		if newA ~= oldA then
 			undeployTeleport(beacon[unitID].link)
 		end
@@ -565,14 +592,16 @@ function gadget:UnitTaken(unitID, unitDefID, oldTeamID, teamID)
 end
 
 function gadget:UnitDestroyed(unitID, unitDefID, unitTeam)
-	
+
 	if teleportingUnit[unitID] then
 		interruptTeleport(teleportingUnit[unitID])
 	end
-	
+
 	if tele[unitID] then
-		if tele[unitID].link and Spring.ValidUnitID(tele[unitID].link) then
-			Spring.DestroyUnit(tele[unitID].link, true)
+		local beaconID = tele[unitID].link
+		if beaconID and Spring.ValidUnitID(beaconID) then
+			orphanedBeacons[#orphanedBeacons + 1] = beaconID
+			beacon[beaconID] = nil
 		end
 		tele[teleID.data[teleID.count]].index = tele[unitID].index
 		teleID.data[tele[unitID].index] = teleID.data[teleID.count]
@@ -586,6 +615,8 @@ function gadget:UnitDestroyed(unitID, unitDefID, unitTeam)
 		interruptTeleport(beacon[unitID].link)
 		beacon[unitID] = nil
 	end
+
+	beaconWaiter[unitID] = nil
 end
 
 function gadget:Initialize()
@@ -593,6 +624,8 @@ function gadget:Initialize()
 	GG.tele_deployTeleport = tele_deployTeleport
 	GG.tele_undeployTeleport = tele_undeployTeleport
 	GG.tele_createBeacon = tele_createBeacon
+	
+	GG.Teleport_AllowCommand = Teleport_AllowCommand
 
 	for _, unitID in ipairs(Spring.GetAllUnits()) do
 		local unitDefID = Spring.GetUnitDefID(unitID)
@@ -601,6 +634,66 @@ function gadget:Initialize()
 	end
 end
 
+--------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
+-- Save/Load
+
+function gadget:Load(zip)
+	for _, unitID in ipairs(Spring.GetAllUnits()) do
+		-- reconnect beacons and Djinns, deploy Djinns
+		local parentID = Spring.GetUnitRulesParam(unitID, "connectto")
+		if parentID then
+			parentID = GG.SaveLoad.GetNewUnitID(parentID)
+			if parentID then
+				local x,_,z = Spring.GetUnitPosition(unitID)
+				tele_createBeacon(parentID, x, z, unitID)
+				if Spring.GetUnitRulesParam(parentID, "deploy") == 1 then
+					callScript(parentID, "DeployTeleportInstant")
+				else
+					callScript(parentID, "DeployTeleport")
+				end
+			end
+		end
+		
+		-- restart beacon placement if it was in progress
+		if Spring.GetUnitRulesParam(unitID, "tele_creating_beacon_x") then
+			Spring.SetUnitRulesParam(unitID, "tele_creating_beacon_x", nil)
+			Spring.SetUnitRulesParam(unitID, "tele_creating_beacon_z", nil)
+		end
+		
+		-- load offset teleport end frame
+		local teleportEnd = Spring.GetUnitRulesParam(unitID, "teleportend")
+		if teleportEnd and teleportEnd > 0 then
+			teleportEnd = teleportEnd - GG.SaveLoad.GetSavedGameFrame()
+			Spring.SetUnitRulesParam(unitID, "teleportend", teleportEnd)
+			if tele[unitID] then
+				tele[unitID].teleFrame = teleportEnd
+			end
+		end
+		
+		-- load teleportiee with new ID and teleport destination
+		local teleportieeOld = Spring.GetUnitRulesParam(unitID, "teleportiee")
+		if teleportieeOld and teleportieeOld > 0 then
+			local teleportiee = GG.SaveLoad.GetNewUnitID(teleportieeOld)			
+			if teleportiee and tele[unitID] then
+				local udID = Spring.GetUnitDefID(teleportiee)
+				local ud = UnitDefs[udID]
+				local tx, ty, tz = Spring.GetUnitPosition(unitID)
+				-- pick a new teleport destination
+				local teleTarget = GetTeleTargetPos(ud, tx, tz)
+				if teleTarget then
+					tele[unitID].teleportiee = teleportiee
+					tele[unitID].offsetIndex = teleTarget
+					Spring.SetUnitRulesParam(unitID, "teleportiee", teleportiee)
+				else
+					Spring.SetUnitRulesParam(unitID, "teleportiee", -1)
+				end
+			else
+				Spring.SetUnitRulesParam(unitID, "teleportiee", -1)
+			end
+		end
+	end
+end
 
 else
 -------------------------------------------------------------------------------------
@@ -608,6 +701,29 @@ else
 -- UNSYNCED
 -------------------------------------------------------------------------------------
 -------------------------------------------------------------------------------------
+
+local glVertex           = gl.Vertex
+local spIsUnitInView     = Spring.IsUnitInView
+local spGetUnitPosition  = Spring.GetUnitPosition
+local spGetUnitLosState  = Spring.GetUnitLosState
+local spValidUnitID      = Spring.ValidUnitID
+local spGetMyTeamID      = Spring.GetMyTeamID
+local spGetMyAllyTeamID  = Spring.GetMyAllyTeamID
+local spGetModKeyState   = Spring.GetModKeyState
+local spAreTeamsAllied   = Spring.AreTeamsAllied
+local spGetUnitVectors   = Spring.GetUnitVectors
+local spGetUnitDefID     = Spring.GetUnitDefID
+local spGetSelectedUnits = Spring.GetSelectedUnits
+local spGetUnitTeam      = Spring.GetUnitTeam
+local spGetLocalTeamID   = Spring.GetLocalTeamID
+
+local myTeam = spGetMyTeamID()
+local myAllyTeam = spGetMyAllyTeamID()
+
+local beaconDef = UnitDefNames["tele_beacon"].id
+local beacons = {}
+local beaconCount = 0
+
 function gadget:Initialize()
 	gadgetHandler:RegisterCMDID(CMD_PLACE_BEACON)
 	gadgetHandler:RegisterCMDID(CMD_WAIT_AT_BEACON)
@@ -618,39 +734,45 @@ function gadget:Initialize()
 	Spring.SetCustomCommandDrawData(CMD_WAIT_AT_BEACON, "Beacon Queue", {0.1, 0.1, 1, 0.7})
 end
 
+function gadget:DefaultCommand(type, targetID)
+	if (type == 'unit') and beaconDef == spGetUnitDefID(targetID) then
+		local targetTeam = spGetUnitTeam(targetID)
+		local selfTeam = spGetLocalTeamID()
+		if not (spAreTeamsAllied(targetTeam, selfTeam)) then
+			return
+		end
 
-local glVertex          = gl.Vertex
-local spIsUnitInView    = Spring.IsUnitInView
-local spGetUnitPosition = Spring.GetUnitPosition
-local spGetUnitLosState = Spring.GetUnitLosState
-local spValidUnitID 	= Spring.ValidUnitID
-local spGetMyTeamID	    = Spring.GetMyTeamID
-local spGetMyAllyTeamID = Spring.GetMyAllyTeamID 	
-local spGetModKeyState	= Spring.GetModKeyState
-local spAreTeamsAllied	= Spring.AreTeamsAllied
-local spGetUnitVectors  = Spring.GetUnitVectors
+		local selUnits = spGetSelectedUnits()
+		if (not selUnits[1]) then
+			return
+		end
 
-local myTeam = spGetMyTeamID()
-
-local beaconDef = UnitDefNames["tele_beacon"].id
-local beacons = {}
-local beaconCount = 0
+		local unitID, unitDefID
+		for i = 1, #selUnits do
+			unitID    = selUnits[i]
+			unitDefID = spGetUnitDefID(unitID)
+			if canTeleport[unitDefID] then
+				return CMD_WAIT_AT_BEACON
+			end
+		end
+	end
+end
 
 local function DrawBezierCurve(pointA, pointB, pointC,pointD, amountOfPoints)
 	local step = 1/amountOfPoints
-	glVertex (pointA[1]+3, pointA[2]+3, pointA[3]+3)
+	glVertex (pointA[1], pointA[2], pointA[3])
 	for i=0, 1, step do
 		local x = pointA[1]*((1-i)^3) + pointB[1]*(3*i*(1-i)^2) + pointC[1]*(3*i*i*(1-i)) + pointD[1]*(i*i*i)
 		local y = pointA[2]*((1-i)^3) + pointB[2]*(3*i*(1-i)^2) + pointC[2]*(3*i*i*(1-i)) + pointD[2]*(i*i*i)
 		local z = pointA[3]*((1-i)^3) + pointB[3]*(3*i*(1-i)^2) + pointC[3]*(3*i*i*(1-i)) + pointD[3]*(i*i*i)
 		glVertex(x,y,z)
 	end
-	glVertex(pointD[1]+3,pointD[2]+3,pointD[3]+3)
+	glVertex(pointD[1],pointD[2],pointD[3])
 end
 
 local function GetUnitTop (unitID, x,y,z)
 	local height = Spring.GetUnitHeight(unitID) -- previously hardcoded to 50
-	local top = select (2, spGetUnitVectors(unitID))
+	local top = select(2, spGetUnitVectors(unitID))
 	local offX = top[1]*height
 	local offY = top[2]*height
 	local offZ = top[3]*height
@@ -662,15 +784,14 @@ local function DrawWire(spec)
 		local bid = beacons[i]
 		local tid = Spring.GetUnitRulesParam(bid, "connectto")
 
-		if (Spring.GetUnitRulesParam(tid, "deploy") == 1) then
+		if tid and (Spring.GetUnitRulesParam(tid, "deploy") == 1) then
 			local point = {nil, nil, nil, nil}
-			local _,_,_,xxx,yyy,zzz = Spring.GetUnitPosition(tid, true)
 			local teleportiee = Spring.GetUnitRulesParam(tid, "teleportiee")
 			if (teleportiee >= 0) and spValidUnitID(teleportiee) and spValidUnitID(bid) then
-				local los1 = spGetUnitLosState(teleportiee, myTeam, false)
-				local los2 = spGetUnitLosState(bid, myTeam, false)
+				local los1 = spGetUnitLosState(teleportiee, myAllyTeam, false)
+				local los2 = spGetUnitLosState(bid, myAllyTeam, false)
 				if (spec or (los1 and los1.los) or (los2 and los2.los)) and (spIsUnitInView(teleportiee) or spIsUnitInView(bid)) then
-					_,_,_,xxx,yyy,zzz = Spring.GetUnitPosition(bid, true)
+					local _,_,_,xxx,yyy,zzz = Spring.GetUnitPosition(bid, true)
 					local topX, topY, topZ = GetUnitTop(bid, xxx, yyy, zzz)
 					point[1] = {xxx, yyy, zzz}
 					point[2] = {topX, topY, topZ}
@@ -721,37 +842,37 @@ end
 
 local function DrawWorldFunc()
 	if beaconCount > 0 then
-		local spec, fullview = Spring.GetSpectatingState()
-		spec = spec or fullview
+		local _, fullview = Spring.GetSpectatingState()
 
-		DrawWire(spec)
+		DrawWire(fullview)
 		
 		local shift = select (4, spGetModKeyState())
 		local drawnSomethingYet = false
-		for i=1, beaconCount do
+		for i = 1, beaconCount do
 			local bid = beacons[i]
 			local tid = Spring.GetUnitRulesParam(bid, "connectto")
-			local team = Spring.GetUnitTeam(tid)
-			if spValidUnitID(tid) and spValidUnitID(bid) and (spec or spAreTeamsAllied(myTeam, team)) and (shift or (Spring.IsUnitSelected(tid) or Spring.IsUnitSelected(bid))) then
-				
-				if not drawnSomethingYet then
-					gl.PushAttrib(GL.LINE_BITS)
-		
-					gl.DepthTest(true)
+			if tid then
+				local team = Spring.GetUnitTeam(tid)
+				if spValidUnitID(tid) and spValidUnitID(bid) and (fullview or spAreTeamsAllied(myTeam, team)) and (shift or (Spring.IsUnitSelected(tid) or Spring.IsUnitSelected(bid))) then
 					
-					gl.LineWidth(2)
-					gl.LineStipple('')
-					drawnSomethingYet = true
+					if not drawnSomethingYet then
+						gl.PushAttrib(GL.LINE_BITS)
+			
+						gl.DepthTest(true)
+						
+						gl.LineWidth(2)
+						gl.LineStipple('')
+						drawnSomethingYet = true
+					end
+					
+					gl.Color(0.1, 0.3, 1, 0.9)
+					gl.BeginEnd(GL.LINES, DrawFunc, bid, tid)
+					
+					local x,y,z = spGetUnitPosition(bid)
+					
+					gl.DrawGroundCircle(x,y,z, BEACON_TELEPORT_RADIUS, 32)
 				end
-				
-				gl.Color(0.1, 0.3, 1, 0.9)
-				gl.BeginEnd(GL.LINES, DrawFunc, bid, tid)
-				
-				local x,y,z = spGetUnitPosition(bid)
-				
-				gl.DrawGroundCircle(x,y,z, BEACON_TELEPORT_RADIUS, 32)
 			end
-
 		end
 
 		if drawnSomethingYet then

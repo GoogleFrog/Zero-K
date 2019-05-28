@@ -13,7 +13,6 @@ local weaponDef = {
 
 	damage                  = {
 		default = 320,
-		planes  = 320,
 		subs    = 16,
 	},
 
@@ -22,7 +21,7 @@ local weaponDef = {
 	impulseBoost            = 0,
 	impulseFactor           = 0.4,
 	interceptedByShieldType = 1,
-	myGravity               = 0.1,
+	myGravity               = 0.09,
 	noSelfDamage            = true,
 	range                   = 800,
 	reloadtime              = 4,

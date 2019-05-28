@@ -14,22 +14,12 @@ unitDef = {
   buildingGroundDecalType       = [[chickenspire_aoplane.dds]],
   buildPic                      = [[chickenspire.png]],
   buildTime                     = 2500,
-  canAttack                     = true,
-  canstop                       = [[1]],
   category                      = [[SINK]],
   collisionVolumeOffsets        = [[0 48 0]],
   collisionVolumeScales         = [[58 176 58]],
-  collisionVolumeTest           = 1,
   collisionVolumeType           = [[CylY]],
 
   customParams                  = {
-    description_fr = [[Artillerie statique]],
-	description_de = [[Stationäre Artillerie]],
-	description_pl = [[Artyleria stacjonarna]],
-    helptext       = [[Long range static artillery.]],
-    helptext_fr    = [[La terreur verte projette des amas commpos?s de d'acides corrosifs et de germes sur de tr?s longues distances.]],
-	helptext_de    = [[Weitreichende, stationäre Artillerie.]],
-	helptext_pl    = [[Dalekosiezna stacjonarna artyleria. Delikatna i bezbronna w bezposredniej walce.]],
   },
 
   energyMake                    = 0,
@@ -42,7 +32,6 @@ unitDef = {
   idleAutoHeal                  = 5,
   idleTime                      = 1800,
   levelGround                   = false,
-  mass                          = 344,
   maxDamage                     = 1500,
   maxSlope                      = 36,
   maxVelocity                   = 0,
@@ -52,8 +41,8 @@ unitDef = {
   objectName                    = [[spire.s3o]],
   onoffable                     = true,
   power                         = 2500,
-  seismicSignature              = 4,
   selfDestructAs                = [[NOWEAPON]],
+  script                        = [[chickenspire.lua]],
 
   sfxtypes                      = {
 
@@ -64,10 +53,8 @@ unitDef = {
     },
 
   },
-
-  side                          = [[THUNDERBIRDS]],
   sightDistance                 = 512,
-  smoothAnim                    = true,
+  sonarDistance                 = 512,
   turnRate                      = 0,
   upright                       = false,
   useBuildingGroundDecal        = true,
@@ -93,6 +80,10 @@ unitDef = {
       burstrate               = 0.01,
       craterBoost             = 0,
       craterMult              = 0,
+			
+			customParams            = {
+        light_radius = 0,
+      },
 
       damage                  = {
         default = 180,
@@ -100,7 +91,6 @@ unitDef = {
         subs    = 8,
       },
 
-      endsmoke                = [[0]],
       explosionGenerator      = [[custom:blobber_goo]],
       impulseBoost            = 0,
       impulseFactor           = 0.4,
@@ -115,11 +105,9 @@ unitDef = {
       soundHit                = [[chickens/acid_hit]],
       soundStart              = [[chickens/acid_fire]],
       sprayAngle              = 512,
-      startsmoke              = [[0]],
       tolerance               = 5000,
       turret                  = true,
       waterweapon             = true,	  
-      weaponTimer             = 0.2,
       weaponType              = [[Cannon]],
       weaponVelocity          = 550,
     },  
@@ -131,6 +119,10 @@ unitDef = {
       collideFriendly         = false,
       craterBoost             = 1,
       craterMult              = 2,
+			
+			customParams            = {
+        light_radius = 0,
+      },
 
       damage                  = {
         default = 1000,
@@ -146,11 +138,10 @@ unitDef = {
       impulseFactor           = 0.4,
       interceptedByShieldType = 2,
       model                   = [[chickenegggreen_big.s3o]],
-      range                   = 4500,
-      reloadtime              = 10,
-      smokedelay              = [[0.1]],
+      projectiles             = 4,
+      range                   = 6300,
+      reloadtime              = 14,
       smokeTrail              = true,
-      startsmoke              = [[1]],
       startVelocity           = 40,
       texture1                = [[none]],
       texture2                = [[sporetrail2]],
@@ -162,8 +153,8 @@ unitDef = {
       waterweapon             = true,
       weaponAcceleration      = 40,
       weaponType              = [[MissileLauncher]],
-      weaponVelocity          = 400,
-	  wobble				  = 24000,
+      weaponVelocity          = 750,
+      wobble                  = 24000,
     },
 
   },

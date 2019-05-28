@@ -32,13 +32,8 @@ local min = math.min
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
 
-if not Spring.SetUnitMidAndAimPos then
-	return
-end
-
 local FULL_GROW = 0.4
 local UPDATE_FREQUENCY = 25
-
 
 local growUnit = {}
 local offsets = {}
@@ -73,11 +68,23 @@ for i=1,#UnitDefs do
 		}
 	end
 	if modelRadius or modelHeight then
-		modelRadii[i] = {
+		modelRadii[i] = true -- mark that we need to initialize this
+	end
+end
+
+-- lazily initialize model radius/height since they force loading the model
+local function GetModelRadii(unitDefID)
+	if modelRadii[unitDefID] == true then
+		local ud = UnitDefs[unitDefID]
+		local modelRadius  = ud.customParams.modelradius
+		local modelHeight  = ud.customParams.modelheight
+		modelRadii[unitDefID] = {
 			radius = ( modelRadius and tonumber(modelRadius) or ud.radius ),
 			height = ( modelHeight and tonumber(modelHeight) or ud.height ),
 		}
 	end
+
+	return modelRadii[unitDefID]
 end
 
 --------------------------------------------------------------------------------
@@ -88,10 +95,18 @@ local function UpdateUnitGrow(unitID, growScale)
 	local unit = growUnit[unitID]
 	growScale = 1 - growScale
 	
-	spSetUnitCollisionVolumeData(unitID,
-		unit.scale[1], unit.scale[2] - growScale*unit.scaleOff, unit.scale[3], 
-		unit.offset[1], unit.offset[2] - growScale*unit.scaleOff/2, unit.offset[3], 
-		unit.volumeType, unit.testType, unit.primaryAxis)
+	if unit.isSphere then
+		spSetUnitCollisionVolumeData(unitID,
+			unit.scale[1], unit.scale[2], unit.scale[3], 
+			unit.offset[1], unit.offset[2] - growScale*unit.scaleOff, unit.offset[3], 
+			unit.volumeType, unit.testType, unit.primaryAxis
+		)
+	else
+		spSetUnitCollisionVolumeData(unitID,
+			unit.scale[1], unit.scale[2] - growScale*unit.scaleOff, unit.scale[3], 
+			unit.offset[1], unit.offset[2] - growScale*unit.scaleOff/2, unit.offset[3], 
+			unit.volumeType, unit.testType, unit.primaryAxis)
+	end
 
 	spSetUnitMidAndAimPos(unitID, 
 		unit.mid[1], unit.mid[2], unit.mid[3],
@@ -100,6 +115,8 @@ end
 
 function gadget:UnitCreated(unitID, unitDefID, teamID)
 	local ud = UnitDefs[unitDefID]
+	
+	local midTable = ud.model
 	
 	local mid, aim
 	
@@ -110,15 +127,16 @@ function gadget:UnitCreated(unitID, unitDefID, teamID)
 		aim[2] = Spring.GetUnitRulesParam(unitID, "aimpos_override") or aim[2]
 		
 		spSetUnitMidAndAimPos(unitID, 
-			mid[1] + ud.midx, mid[2] + ud.midy, mid[3] + ud.midz, 
-			aim[1] + ud.midx, aim[2] + ud.midy, aim[3] + ud.midz, true)
+			mid[1] + midTable.midx, mid[2] + midTable.midy, mid[3] + midTable.midz, 
+			aim[1] + midTable.midx, aim[2] + midTable.midy, aim[3] + midTable.midz, true)
 	else
 		mid = {0, Spring.GetUnitRulesParam(unitID, "midpos_override") or 0, 0}
 		aim = {0, Spring.GetUnitRulesParam(unitID, "aimpos_override") or 0, 0}
 	end
 	
 	if modelRadii[unitDefID] then
-		spSetUnitRadiusAndHeight(unitID, modelRadii[unitDefID].radius, modelRadii[unitDefID].height)
+		local mr = GetModelRadii(unitDefID)
+		spSetUnitRadiusAndHeight(unitID, mr.radius, mr.height)
 	end
 	
 	local buildProgress = select(5, spGetUnitHealth(unitID))
@@ -128,7 +146,6 @@ function gadget:UnitCreated(unitID, unitDefID, teamID)
 	end
 	
 	-- Sertup growth scale
-	
 	local _, baseY, _, _, midY, _, _, aimY = spGetUnitPosition(unitID, true, true)
 	local scaleX, scaleY, scaleZ, offsetX, offsetY, offsetZ, 
 		volumeType, testType, primaryAxis = spGetUnitCollisionVolumeData(unitID)
@@ -140,26 +157,52 @@ function gadget:UnitCreated(unitID, unitDefID, teamID)
 		aimAbove = aimAbove + volumeBelow
 		volumeBelow = 0
 	end
-
+	
+	local isSphere = (volumeType == 3) -- Spheres are 3, seems to be no way for engine to tell me this.
 	local aimOff = aimAbove - 1
-	local scaleOff = scaleY - volumeBelow - 2
+	
+	-- Spheres poke more above the ground to give them more vulnerabilty.
+	-- Otherwise only the tip would show. Other volumes show the entire surface area because they are prisms.
+	local scaleOff = scaleY - volumeBelow - ((isSphere and 8) or 2)
 	
 	local growScale = min(1, buildProgress/FULL_GROW)
-
+	
 	growUnit[unitID] = {
-		mid = {mid[1] + ud.midx, mid[2] + ud.midy, mid[3] + ud.midz},
-		aim = {aim[1] + ud.midx, aim[2] + ud.midy, aim[3] + ud.midz},
+		mid = {mid[1] + midTable.midx, mid[2] + midTable.midy, mid[3] + midTable.midz},
+		aim = {aim[1] + midTable.midx, aim[2] + midTable.midy, aim[3] + midTable.midz},
 		aimOff = aimOff,
 		scaleOff = scaleOff,
 		scale = {scaleX, scaleY, scaleZ},
 		offset = {offsetX, offsetY, offsetZ},
 		volumeType = volumeType,
+		isSphere = isSphere,
 		testType = testType,
 		primaryAxis = primaryAxis,
 		prevGrowth = growScale,
 	}
 	
+	local luaSelectionScale = ud.customParams.lua_selection_scale
+	if Spring.SetUnitSelectionVolumeData and luaSelectionScale then
+		Spring.SetUnitSelectionVolumeData(unitID,
+			scaleX*luaSelectionScale, scaleY*luaSelectionScale, scaleZ*luaSelectionScale, 
+			0, 0, 0, 
+			volumeType, testType, primaryAxis)
+	end
+	
 	UpdateUnitGrow(unitID, growScale)
+end
+
+local function OverrideMidAndAimPos(unitID, mid, aim)
+	if not spValidUnitID(unitID) then
+		return
+	end
+	
+	-- Do not override growing units
+	if growUnit[unitID] then
+		return
+	end
+	
+	spSetUnitMidAndAimPos(unitID, mid[1], mid[2], mid[3], aim[1], aim[2], aim[3], true)
 end
 
 function gadget:UnitFinished(unitID, unitDefID, teamID)
@@ -192,6 +235,8 @@ function gadget:GameFrame(f)
 end
 
 function gadget:Initialize()
+	GG.OverrideMidAndAimPos = OverrideMidAndAimPos
+	
 	for _, unitID in ipairs(Spring.GetAllUnits()) do
 		local unitDefID = Spring.GetUnitDefID(unitID)
 		gadget:UnitCreated(unitID, unitDefID)

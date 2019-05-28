@@ -13,6 +13,8 @@ local Chili
 local spectating = Spring.GetSpectatingState()
 local allied_teams
 
+local is_RoI = (Spring.GetModOptions().overdrivesharingscheme ~= "0")
+
 local window, fake_window
 local name_labels = {}
 local roi_labels = {}
@@ -21,7 +23,7 @@ local base_income_labels = {}
 local od_income_labels = {}
 
 function widget:Initialize()
-	if (Spring.GetModOptions().overdrivesharingscheme ~= "investmentreturn") then
+	if not is_RoI then
 		Spring.Echo ("RoI Counter: No need to track capital under Communism, comrade!")
 		widgetHandler:RemoveWidget()
 		return
@@ -69,10 +71,10 @@ function widget:Update(s)
 		window.height = fake_window.height - 45
 		window.width = fake_window.width - 15
 		for i = 1, #allied_teams do
-			roi_labels[i]:SetCaption (string.format("%d m", Spring.GetTeamRulesParam(allied_teams[i], "OD_RoI_metalDue") or "#"))
-			base_labels[i]:SetCaption (string.format("%d m", Spring.GetTeamRulesParam(allied_teams[i], "OD_base_metalDue") or "#"))
-			base_income_labels[i]:SetCaption (string.format("+%d m", Spring.GetTeamRulesParam(allied_teams[i], "OD_myBase") or "#"))
-			od_income_labels[i]:SetCaption (string.format("+%d m", Spring.GetTeamRulesParam(allied_teams[i], "OD_myOverdrive") or "#"))
+			roi_labels[i]:SetCaption (string.format("%d m", Spring.GetTeamRulesParam(allied_teams[i], "OD_RoI_metalDue") or 0))
+			base_labels[i]:SetCaption (string.format("%d m", Spring.GetTeamRulesParam(allied_teams[i], "OD_base_metalDue") or 0))
+			base_income_labels[i]:SetCaption (string.format("+%d m", Spring.GetTeamRulesParam(allied_teams[i], "OD_metalBase") or 0))
+			od_income_labels[i]:SetCaption (string.format("+%d m", Spring.GetTeamRulesParam(allied_teams[i], "OD_metalOverdrive") or 0))
 		end
 	end
 end
@@ -92,6 +94,7 @@ function CreateWindow()
 		minWidth = 320,
 		clientHeight = 100,
 		minHeight = 50,
+		classname = "main_window_small",
 		draggable = true,
 		resizable = true,
 		tweakDraggable = true,
@@ -131,7 +134,7 @@ function CreateWindow()
 	for i = 1, #allied_teams do
 		local tID = allied_teams[i]
 		local r, g, b = Spring.GetTeamColor(tID)
-		local name = Spring.GetPlayerInfo (select (2, Spring.GetTeamInfo(tID)))
+		local name = Spring.GetPlayerInfo (select (2, Spring.GetTeamInfo(tID, false)), false)
 		name_labels[i] = Chili.Label:New{
 			x = 5,
 			y = 16*i - 10,

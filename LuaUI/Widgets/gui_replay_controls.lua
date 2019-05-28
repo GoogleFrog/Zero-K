@@ -46,8 +46,17 @@ local isPaused = false
 -- local wantedSpeed = nil
 local skipped = false
 local fastForwardTo = -1
+local currentFrameTime = 0
 local demoStarted = false
 local showProgress = true
+
+local SELECT_BUTTON_COLOR = {0.98, 0.48, 0.26, 0.85}
+local SELECT_BUTTON_FOCUS_COLOR = {0.98, 0.48, 0.26, 0.85}
+
+-- Defined upon learning the appropriate colors
+local BUTTON_COLOR
+local BUTTON_FOCUS_COLOR
+local BUTTON_BORDER_COLOR
 
 ---------------------------------
 -- Epic Menu
@@ -60,6 +69,7 @@ options = {
 		desc = 'Enables a clickable progress bar for the replay.',
 		type = 'bool',
 		value = true,
+		noHotkey = true,
 		OnChange = function(self) 
 			if (not Spring.IsReplay()) then
 				return
@@ -111,7 +121,7 @@ function CreateTheUI()
 	--create main Chili elements
 	local screenWidth,screenHeight = Spring.GetWindowGeometry()
 	local height = tostring(math.floor(screenWidth/screenHeight*0.35*0.35*100)) .. "%"
-	local y = tostring(math.floor((1-screenWidth/screenHeight*0.35*0.35)*100)) .. "%"
+	local windowY = math.floor(screenWidth*2/11 + 32)
 	
 	local labelHeight = 24
 	local fontSize = 16
@@ -132,19 +142,17 @@ function CreateTheUI()
 	
 	window = Window:New{
 		--parent = screen0,
-		name   = 'replaycontroller';
-		width = 300;
-		height = 85;
+		name   = 'replaycontroller3';
+		width = 310;
+		height = 86;
 		right = 10; 
-		y = "20%";
+		y = windowY;
+		classname = "main_window_small_flat",
 		dockable = false;
 		draggable = true,
 		resizable = false,
 		tweakDraggable = true,
 		tweakResizable = false,
-		minWidth = MIN_WIDTH, 
-		minHeight = MIN_HEIGHT,
-		padding = {0, 0, 0, 0},
 		--informational tag:
 		currSpeed = currSpeed, 
 		lastClick = Spring.GetTimer(),
@@ -194,39 +202,54 @@ function CreateTheUI()
 	}
 	
 	for i = 1, #speeds do
-		button_setspeed[i] = Button:New {
-		width = 40,
-		height = 20,
-		y = 36,
-		x = 10+(i-1)*40,
-		parent=window;
-		padding = {0, 0, 0,0},
-		margin = {0, 0, 0, 0},
-		backgroundColor = (i==currSpeed and {0, 0, 1, 1}) or {1, 1, 0, 1}, -- 1x selected by default
-		caption=speeds[i] .."x",
-		tooltip = "play at " .. speeds[i] .. "x speed";
-		OnClick = {function()
-			snapButton(i)
-			progress_target:SetValue(0)
-			setReplaySpeed (speeds[i], i)
-			if isPaused then
-				unpause()
-			end
-		end}
-	}
+		local button = Button:New {
+			width = 40,
+			height = 20,
+			y = 28,
+			x = 5+(i-1)*40,
+			classname = "button_tiny",
+			parent=window;
+			padding = {0, 0, 0,0},
+			margin = {0, 0, 0, 0},
+			caption=speeds[i] .."x",
+			tooltip = "play at " .. speeds[i] .. "x speed";
+			OnClick = {
+				function()
+					snapButton(i)
+					progress_target:SetValue(0)
+					setReplaySpeed (speeds[i], i)
+				end
+			}
+		}	
+		if not BUTTON_COLOR then
+			BUTTON_COLOR = button.backgroundColor
+		end
+		if not BUTTON_FOCUS_COLOR then
+			BUTTON_FOCUS_COLOR = button.focusColor
+		end
+		if not BUTTON_BORDER_COLOR then
+			BUTTON_BORDER_COLOR = button.borderColor
+		end
+		if i == currSpeed then
+			button.backgroundColor = SELECT_BUTTON_COLOR
+			button.focusColor = SELECT_BUTTON_FOCUS_COLOR
+			button:Invalidate()
+		end
+		button_setspeed[i] = button
 	end
 	
 	if (frame == 0) then 
 		button_skipPreGame = Button:New {
 			width = 180,
 			height = 20,
-			y = 58,
-			x = 100,
+			y = 50,
+			x = 95,
+			classname = "button_tiny",
 			parent=window;
 			padding = {0, 0, 0,0},
 			margin = {0, 0, 0, 0},
 			caption="skip pregame chatter",
-			tooltip = "Skip the pregame chat and startposition chosing, directly to the action!";
+			tooltip = "Skip the pregame chat and startposition choosing, go directly to the action!";
 			OnClick = {function()
 				skipPreGameChatter ()
 				end}
@@ -234,14 +257,13 @@ function CreateTheUI()
 	else 
 		--in case reloading luaui mid demo
 		widgetHandler:RemoveCallIn("AddConsoleMessage")
-		widgetHandler:RemoveCallIn("Update")
 	end
 	
 	label_hoverTime = Label:New {
 		width = 20,
 		height = 15,
-		y = 58,
-		x = 133,
+		y = 54,
+		x = 125,
 		parent=window;
 		caption=" ",
 	}
@@ -249,27 +271,29 @@ function CreateTheUI()
 	button_startStop = Button:New {
 		width = 80,
 		height = 20,
-		y = 58,
-		x = 10,
+		y = 50,
+		x = 5,
+			classname = "button_tiny",
 		parent=window;
 		padding = {0, 0, 0,0},
 		margin = {0, 0, 0, 0},
 		caption="pause", --pause/continue
 		tooltip = "pause or continue playback";
 		OnClick = {function()
+			currentFrameTime = -3
 			if (isPaused) then
-				unpause ()
+				unpause()
 			else
-				pause ()
+				pause()
 			end
-			end}
+		end}
 	}
 	
 	progress_target = Progressbar:New{
 			parent = window,
-			y =  8,
-			x		= 10,
-			width   = 280,
+			y =  5,
+			x		= 5,
+			right = 5,
 			height	= 20, 
 			max     = 1;
 			color   = {0.75,0.75,0.75,0.5} ;
@@ -280,9 +304,9 @@ function CreateTheUI()
 	local replayLen = (replayLen and replayLen* 30) or 100-- in frame
 	progress_speed = Progressbar:New{
 			parent = window,
-			y =  8,
-			x		= 10,
-			width   = 280,
+			y =  5,
+			x		= 5,
+			right = 5,
 			height	= 20, 
 			max     = replayLen;
 			caption = showProgress and (frame/replayLen*100 .. "%") or " ",
@@ -298,24 +322,30 @@ function CreateTheUI()
 end
 
 function snapButton(pushButton)
-	button_setspeed[window.currSpeed].backgroundColor = {1, 1, 0, 1}
+	button_setspeed[window.currSpeed].backgroundColor = BUTTON_COLOR
+	button_setspeed[window.currSpeed].focusColor = BUTTON_FOCUS_COLOR
 	button_setspeed[window.currSpeed]:Invalidate()
-	button_setspeed[pushButton].backgroundColor = {0, 0, 1, 1}
+	button_setspeed[pushButton].backgroundColor = SELECT_BUTTON_COLOR
+	button_setspeed[pushButton].focusColor = SELECT_BUTTON_FOCUS_COLOR
 	button_setspeed[pushButton]:Invalidate()
 end
 
-function pause ()
+function pause(supressCommand)
 	Spring.Echo ("Playback paused")
-	Spring.SendCommands ("pause 1")
+	if not supressCommand then
+		Spring.SendCommands ("pause 1")
+	end
 	isPaused = true
 	button_startStop:SetCaption ("play")
 	--window:SetColor ({1,0,0, 1})
 	--window:SetCaption ("trololo")--button stays pressed down and game lags	ANY INVALID CODE MAKES IT LAG, REASON WHY COM MORPH LAGS?
 end
 
-function unpause ()
+function unpause(supressCommand)
 	Spring.Echo ("Playback continued")
-	Spring.SendCommands ("pause 0")
+	if not supressCommand then
+		Spring.SendCommands ("pause 0")
+	end
 	isPaused = false
 	button_startStop:SetCaption ("pause")
 end
@@ -346,7 +376,7 @@ function setReplaySpeed (speed, i)
 		-- while (Spring.GetGameSpeed() > speed and i < 50) do
 			-- Spring.SendCommands ("setminspeed " ..0.1)
 			Spring.SendCommands ("setmaxspeed " .. speed)
-		  Spring.SendCommands ("setmaxspeed " .. 10.0)
+			Spring.SendCommands ("setmaxspeed " .. 10.0)
 			-- Spring.SendCommands ("slowdown")
 			-- i=i+1
 		-- end	
@@ -372,9 +402,22 @@ function widget:Update(dt)
 			lastSkippedTime = lastSkippedTime + dt
 		end
 	end
+	currentFrameTime = currentFrameTime + dt
+	if currentFrameTime > 0 then
+		if (currentFrameTime > 1) ~= isPaused then
+			if not isPaused then
+				pause(true)
+			else
+				unpause(true)
+			end
+		end
+	end
 end
 
 function widget:GameFrame (f)
+	if currentFrameTime > 0 then
+		currentFrameTime = 0
+	end
 	if (fastForwardTo>0) then
 		if f==fastForwardTo then
 			pause ()
@@ -392,7 +435,6 @@ function widget:GameFrame (f)
 		skipped = nil
 		lastSkippedTime = nil
 		widgetHandler:RemoveCallIn("AddConsoleMessage")
-		widgetHandler:RemoveCallIn("Update")
 	elseif showProgress and (f%2 ==0)  then
 		progress_speed:SetValue(f)
 		progress_speed:SetCaption(math.modf(f/progress_speed.max*100) .. "%")

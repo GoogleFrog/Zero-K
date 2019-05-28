@@ -29,7 +29,7 @@ function gadget:GetInfo()
 	}
 end
 
-if (tobool(Spring.GetModOptions().enableunlocks) == false) then
+if not Spring.GetModOptions().enableunlocks then
 	return
 end
 
@@ -187,7 +187,7 @@ local function InitUnsafe()
 		end
 
 		for index, name in pairs(unlockData) do
-			local team = select(4, Spring.GetPlayerInfo(id))
+			local team = select(4, Spring.GetPlayerInfo(id, false))
 			local udid = UnitDefNames[name] and UnitDefNames[name].id
 			if udid then
 				unlocks[team] = unlocks[team] or {}

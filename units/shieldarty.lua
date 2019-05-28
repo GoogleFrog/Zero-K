@@ -3,12 +3,9 @@ unitDef = {
   name                   = [[Racketeer]],
   description            = [[Disarming Artillery]],
   acceleration           = 0.25,
-  brakeRate              = 0.25,
-  buildCostEnergy        = 350,
+  brakeRate              = 0.75,
   buildCostMetal         = 350,
   buildPic               = [[SHIELDARTY.png]],
-  buildTime              = 350,
-  canAttack              = true,
   canGuard               = true,
   canMove                = true,
   canPatrol              = true,
@@ -16,9 +13,6 @@ unitDef = {
   corpse                 = [[DEAD]],
 
   customParams           = {
-    description_pl = [[Artyleria rozbrajajaca]],
-    helptext       = [[The Racketeer launches long range missiles that can disarm key enemy defenses or units before assaulting them. Only one Racketeer is needed to keep a target disarmed, so pick a different target for each Racketeer. It is excellent at depleting the energy of enemy shields and rendering large units harmless.]],
-    helptext_pl    = [[Racketeer to wyrzutnia pociskow dalekiego zasiegu, ktore rozbrajaja trafione jednostki. Swietnie nadaje sie do unieszkodliwiania ciezkich jednostek i do wyczerpywania wrogich tarcz.]],
   },
 
   explodeAs              = [[BIG_UNITEX]],
@@ -28,17 +22,15 @@ unitDef = {
   idleAutoHeal           = 5,
   idleTime               = 1800,
   leaveTracks            = true,
-  maxDamage              = 950,
+  maxDamage              = 780,
   maxSlope               = 36,
   maxVelocity            = 1.8,
   maxWaterDepth          = 22,
   minCloakDistance       = 75,
   movementClass          = [[KBOT2]],
-  moveState              = 0,
-  noChaseCategory        = [[TERRAFORM FIXEDWING GUNSHIP]],
+  noChaseCategory        = [[TERRAFORM FIXEDWING GUNSHIP UNARMED]],
   objectName             = [[dominator.s3o]],
   script                 = [[shieldarty.lua]],
-  seismicSignature       = 4,
   selfDestructAs         = [[BIG_UNITEX]],
 
   sfxtypes               = {
@@ -63,7 +55,6 @@ unitDef = {
 
     {
       def                = [[EMP_ROCKET]],
-      badTargetCategory  = [[SWIM LAND SHIP HOVER]],
       onlyTargetCategory = [[FIXEDWING GUNSHIP SWIM LAND SINK TURRET FLOAT SHIP HOVER]],
     },
 
@@ -71,7 +62,7 @@ unitDef = {
 
   weaponDefs             = {
     EMP_ROCKET = {
-      name                    = [[EMP Cruise Missile]],
+      name                    = [[Disarm Cruise Missile]],
       areaOfEffect            = 24,
       cegTag                  = [[disarmtrail]],
       collideFriendly         = false,
@@ -79,71 +70,65 @@ unitDef = {
       craterMult              = 0,
 
 	  customParams        = {
+		burst = Shared.BURST_RELIABLE,
+
 	    disarmDamageMult = 1,
 		disarmDamageOnly = 1,
-		disarmTimer      = 8, -- seconds
+		disarmTimer      = 6, -- seconds
 	  
+		light_camera_height = 1500,
+		light_color = [[1 1 1]],
 	  },
 	  
       damage                  = {
-        default        = 1500,
+        default        = 2500,
       },
 
       edgeEffectiveness       = 0.4,
       explosionGenerator      = [[custom:WHITE_LIGHTNING_BOMB]],
       fireStarter             = 0,
       flightTime              = 6,
-	  impactOnly              = true,
+      impactOnly              = true,
       impulseBoost            = 0,
       impulseFactor           = 0,
       interceptedByShieldType = 2,
       model                   = [[wep_merl.s3o]],
       noSelfDamage            = true,
       range                   = 940,
-      reloadtime              = 5,
+      reloadtime              = 10,
       smokeTrail              = false,
       soundHit                = [[weapon/missile/vlaunch_emp_hit]],
+      soundHitVolume          = 9.0,
       soundStart              = [[weapon/missile/missile_launch_high]],
+      soundStartVolume        = 11.0,
       startvelocity           = 250,
---      texture1                = [[spark]], --flare
+      --texture1                = [[spark]], --flare
       texture3                = [[spark]], --flame
       tolerance               = 4000,
       tracks                  = true,
-      turnRate                = 54000,
-      weaponAcceleration      = 300,
-      weaponTimer             = 1,
+      turnRate                = 38000,
+      weaponAcceleration      = 275,
+      weaponTimer             = 1.18,
       weaponType              = [[StarburstLauncher]],
-      weaponVelocity          = 1500,
+      weaponVelocity          = 800,
     },
   },
 
   featureDefs            = {
 
     DEAD  = {
-      description      = [[Wreckage - Racketeer]],
       blocking         = true,
-      damage           = 950,
-      energy           = 0,
       featureDead      = [[HEAP]],
       footprintX       = 2,
       footprintZ       = 2,
-      metal            = 140,
       object           = [[dominator_dead.s3o]],
-      reclaimable      = true,
-      reclaimTime      = 140,
     },
 
     HEAP  = {
-      description      = [[Debris - Racketeer]],
       blocking         = false,
-      damage           = 950,
-      energy           = 0,
       footprintX       = 2,
       footprintZ       = 2,
-      metal            = 70,
       object           = [[debris2x2c.s3o]],
-      reclaimable      = true,
-      reclaimTime      = 70,
     },
 
   },

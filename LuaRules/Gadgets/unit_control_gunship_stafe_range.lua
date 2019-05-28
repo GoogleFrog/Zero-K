@@ -20,25 +20,20 @@ end
 
 -------------------------------------------------------------------------------------
 -------------------------------------------------------------------------------------
+local unitDefsToModify = {}	-- [unitDefID] = combatrange
 
-local corbtrans = UnitDefNames["corbtrans"].id
-local armkam = UnitDefNames["armkam"].id
-local bladew = UnitDefNames["bladew"].id
-local armbrawl = UnitDefNames["armbrawl"].id
-local corpyro = UnitDefNames["corpyro"].id
+for udID = 1, #UnitDefs do
+	local weapons = UnitDefs[udID].weapons
+	for i=1,#weapons do
+		local wd = WeaponDefs[weapons[i].weaponDef]
+		if wd and wd.customParams.combatrange then
+			unitDefsToModify[udID] = tonumber(wd.customParams.combatrange)
+		end
+	end
+end
 
 function gadget:UnitCreated(unitID, unitDefID, unitTeam)
-	if unitDefID == corbtrans then
-		Spring.SetUnitWeaponState(unitID,1,{range = 300})
-		Spring.SetUnitWeaponState(unitID,2,{range = 450})
-		Spring.SetUnitWeaponState(unitID,3,{range = 450})
-	elseif unitDefID == armkam then
-		Spring.SetUnitWeaponState(unitID,1,{range = 270})
-	elseif unitDefID == bladew then
-		Spring.SetUnitWeaponState(unitID,1,{range = 180})
-	elseif unitDefID == armbrawl then
-		Spring.SetUnitWeaponState(unitID,1,{range = 600})
-	elseif unitDefID == corpyro then
-		Spring.SetUnitWeaponState(unitID,1,{range = 260})
+	if unitDefsToModify[unitDefID] then
+		Spring.SetUnitMaxRange(unitID, unitDefsToModify[unitDefID])
 	end
 end

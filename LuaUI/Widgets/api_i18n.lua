@@ -38,7 +38,7 @@ function widget:GetInfo()
 		enabled   = true,  --  loaded by default?
 		handler   = true,
 		api       = true,
-		hidden    = true,
+		alwaysStart = true,
 	}
 end
 
@@ -47,36 +47,30 @@ VFS.Include("LuaUI/Utilities/json.lua");
 local langValue="en"
 local langListeners={}
 
-local function addListener(widgetName,l)
+local translationExtras = { -- lists databases to be merged into the main one
+	units = {"campaign_units", "pw_units"},
+	interface = {"common", "healthbars", "resbars"},
+}
+
+local translations = {
+	units = true,
+	interface = true,
+	missions = true,
+}
+
+local function addListener(l, widgetName)
 	if l and type(l)=="function" then
-		langListeners[widgetName]=l
-	end
-end
-
-local function fireLangChange()
-	for w,f in pairs(langListeners) do
-		local okay,err=pcall(f)
-		if not okay then
-			Spring.Echo("Remove listener "..w..": "..err)
-			langListeners[w]=nil
+		local okay, err = pcall(l)
+		if okay then
+			langListeners[widgetName]=l
+		else
+			Spring.Echo("i18n API subscribe failed: " .. widgetName .. "\nCause: " .. err)
 		end
 	end
 end
 
-local function lang(l)
-	if not l then
-		return langValue
-	else
-		if langValue~=l then
-			langValue=l
-			fireLangChange()
-		end
-	end
-end
-
-
-local function loadLocale(i18n,widget_name,locale)
-	local path="Luaui/Configs/lang/"..widget_name.."."..locale..".json"
+local function loadLocale(i18n,database,locale)
+	local path="Luaui/Configs/lang/"..database.."."..locale..".json"
 	if VFS.FileExists(path, VFS.ZIP) then
 		local lang=Spring.Utilities.json.decode(VFS.LoadFile(path, VFS.ZIP))
 		local t={}
@@ -84,35 +78,74 @@ local function loadLocale(i18n,widget_name,locale)
 		i18n.load(t)
 		return true
 	end
-	Spring.Echo("Cannot load locale \""..locale.."\" for "..widget_name)
+	Spring.Echo("Cannot load locale \""..locale.."\" for "..database)
 	return false
 end
 
-local function initializeTranslation(widget_name,listener)
-	addListener(widget_name,listener)
-	
-	local i18n = VFS.Include("LuaUI/i18nlib/i18n/init.lua", nil, VFS.DEF_MODE)
-	loadLocale(i18n,widget_name,"en") 
-	
-	local localsList={en=true}
-	return 	function(key,data)
-				local lang=WG.lang()
-				if not localsList[lang] then
-					loadLocale(i18n,widget_name,lang)
-					localsList[lang]=true
+local function fireLangChange()
+
+	for db, trans in pairs(translations) do
+		if not trans.locales[langValue] then
+			local extras = translationExtras[db]
+			if extras then
+				for i = 1, #extras do
+					loadLocale(trans.i18n, extras[i], langValue)
 				end
-				return i18n(key,data,lang)
 			end
+			loadLocale(trans.i18n, db, langValue)
+			trans.locales[langValue] = true
+		end
+		trans.i18n.setLocale(langValue)
+	end
+
+	for w,f in pairs(langListeners) do
+		local okay,err=pcall(f)
+		if not okay then
+			Spring.Echo("i18n API update failed: " .. w .. "\nCause: " .. err)
+			langListeners[w]=nil
+		end
+	end
+end
+
+local function lang (newLang)
+	if not newLang then
+		return langValue
+	elseif langValue ~= newLang then
+		langValue = newLang
+		fireLangChange()
+	end
+end
+
+local function initializeTranslation(database)
+	local trans = {
+		i18n = VFS.Include("LuaUI/i18nlib/i18n/init.lua", nil, VFS.DEF_MODE),
+		locales = {en = true},
+	}
+	loadLocale(trans.i18n,database,"en")
+
+	local extras = translationExtras[database]
+	if extras then
+		for i = 1, #extras do
+			loadLocale(trans.i18n, extras[i], "en")
+		end
+	end
+
+	return trans
 end
 
 local function shutdownTranslation(widget_name)
 	langListeners[widget_name]=nil
 end
 
-if WG.lang then
-	langValue=WG.lang()
+local function Translate (db, text, data)
+	return translations[db].i18n(text, data)
 end
 
-WG.lang=lang
-WG.initializeTranslation=initializeTranslation
-WG.shutdownTranslation=shutdownTranslation
+WG.lang = lang
+WG.InitializeTranslation = addListener
+WG.ShutdownTranslation = shutdownTranslation
+WG.Translate = Translate
+
+for db in pairs(translations) do
+	translations[db] = initializeTranslation (db)
+end

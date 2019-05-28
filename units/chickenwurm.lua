@@ -3,37 +3,29 @@ unitDef = {
   name                = [[Wurm]],
   description         = [[Burrowing Flamer (Assault/Riot)]],
   acceleration        = 0.36,
+  activateWhenBuilt   = true,
   brakeRate           = 0.205,
   buildCostEnergy     = 0,
   buildCostMetal      = 0,
   builder             = false,
   buildPic            = [[chickenwurm.png]],
   buildTime           = 350,
-  canAttack           = true,
   canGuard            = true,
   canMove             = true,
   canPatrol           = true,
   category            = [[LAND]],
 
   customParams        = {
-    description_fr = [[Ver d'assaut souterrain]],
-	description_de = [[Grabender Flammenwerfer (Sturm/Riot)]],
-	description_pl = [[Zakopany miotacz ognia]],
 	fireproof	   = 1,
-    helptext       = [[The Wurm "burrows" under the surface of the ground, revealing itself to hurl a ball of fire that immolates a large swathe of terrain. It can climb cliffs and surprise defense turrets, but is weak to assaults.]],
-    helptext_fr    = [[Ces poulets tenant partiellement de la taupe ont une particularité : ils savent mettre le feu où qu'ils aillent.]],
-	helptext_de    = [[Der Wurm "gräbt" sich unter die Bodenoberfläche und zeigt sich nur, wenn er Feuerbälle, die große Schneisen in das Gelände brennen, schleudert.]],
-	helptext_pl    = [[Wurm zagrzebuje sie pod ziemia i moze w ten sposob poruszac sie. Wychodzac z niej, ciska kule ognia, ktore podpalaja okolice. Moze tez wspinac sie na strome wzniesienia. Jego slabym punktem jest niska wytrzymalosc.]],
   },
 
-  explodeAs           = [[CORPYRO_NAPALM]],
+  explodeAs           = [[jumpraid_PYRO_DEATH]],
   footprintX          = 4,
   footprintZ          = 4,
   iconType            = [[spidergeneric]],
   idleAutoHeal        = 10,
   idleTime            = 600,
   leaveTracks         = true,
-  mass                = 231,
   maxDamage           = 1500,
   maxSlope            = 90,
   maxVelocity         = 1.8,
@@ -41,12 +33,11 @@ unitDef = {
   minCloakDistance    = 75,
   movementClass       = [[ATKBOT3]],
   noAutoFire          = false,
-  noChaseCategory     = [[TERRAFORM FIXEDWING GUNSHIP SATELLITE SUB STUPIDTARGET MINE]],
+  noChaseCategory     = [[SHIP FLOAT SWIM TERRAFORM FIXEDWING GUNSHIP SATELLITE STUPIDTARGET MINE]],
   objectName          = [[chickenwurm.s3o]],
   power               = 350,
   script              = [[chickenwurm.lua]],
-  seismicSignature    = 4,
-  selfDestructAs      = [[CORPYRO_NAPALM]],
+  selfDestructAs      = [[jumpraid_PYRO_DEATH]],
 
   sfxtypes            = {
 
@@ -57,10 +48,8 @@ unitDef = {
     },
 
   },
-
-  side                = [[THUNDERBIRDS]],
   sightDistance       = 384,
-  smoothAnim          = true,
+  sonarDistance       = 384,
   stealth             = true,
   turnRate            = 806,
   upright             = false,
@@ -74,6 +63,18 @@ unitDef = {
       mainDir            = [[0 0 1]],
       maxAngleDif        = 120,
       onlyTargetCategory = [[SWIM LAND SINK TURRET FLOAT GUNSHIP SHIP HOVER]],
+    },
+    {
+      def                = [[UWGOO]], -- Fired when underwater.
+      mainDir            = [[0 0 1]],
+      maxAngleDif        = 120,
+      onlyTargetCategory = [[SWIM LAND SINK TURRET FLOAT SUB GUNSHIP SHIP HOVER]],
+    },
+    {
+      def                = [[UWGOO]], -- Above water, fired at submerged units.
+      mainDir            = [[0 0 1]],
+      maxAngleDif        = 120,
+      onlyTargetCategory = [[SINK SUB]],
     },
 
   },
@@ -105,7 +106,6 @@ unitDef = {
         subs    = 2.5,
       },
 
-      endsmoke                = [[0]],
       explosionGenerator      = [[custom:napalm_firewalker]],
       fireStarter             = 120,
       impulseBoost            = 0,
@@ -120,14 +120,44 @@ unitDef = {
       soundHit                = [[chickens/acid_hit]],
       soundStart              = [[chickens/acid_fire]],
       sprayAngle              = 1024,
-      startsmoke              = [[0]],
       tolerance               = 5000,
       turret                  = true,
-      weaponTimer             = 0.2,
       weaponType              = [[Cannon]],
       weaponVelocity          = 200,
     },
 
+    UWGOO = {
+      name                    = [[Blob]],
+      areaOfEffect            = 128,
+      craterBoost             = 0,
+      craterMult              = 0,
+	  
+	  customParams        	  = {
+	  },
+
+      damage                  = {
+        default = 250,
+      },
+
+      explosionGenerator      = [[custom:large_green_goo]],
+      fireStarter             = 120,
+      impulseBoost            = 0,
+      impulseFactor           = 0.2,
+      intensity               = 0.7,
+      interceptedByShieldType = 1,
+      range                   = 300,
+      reloadtime              = 6,
+      rgbColor                = [[0.2 0.6 0]],
+      size                    = 8,
+      sizeDecay               = 0,
+      soundHit                = [[chickens/acid_hit]],
+      soundStart              = [[chickens/acid_fire]],
+      tolerance               = 9000,
+      turret                  = true,
+      weaponType              = [[Cannon]],
+      weaponVelocity          = 600,
+      waterWeapon	      = true,
+    },
   },
 
 }

@@ -31,10 +31,10 @@ function widget:CommandNotify(id, params, options)
 			
 			state = state - 2	-- engine sent us one step forward instead of one step back, so we go two steps back
 			if state < 0 then
-			  state = multiStates[id] + state	-- wrap
+			  state = multiStates[id] + state -- wrap
 			end
 			for i=1, #units do
-				spGiveOrderToUnit(units[i], id, { state }, {})	
+				spGiveOrderToUnit(units[i], id, { state }, 0)
 			end
 			return true
 		end

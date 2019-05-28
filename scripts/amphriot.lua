@@ -40,7 +40,7 @@ local function Walk()
 	SetSignalMask(SIG_WALK)
 	while true do
 	
-		local speedmult = (1 - (Spring.GetUnitRulesParam(unitID,"slowState") or 0))*SPEED
+		local speedmult = (Spring.GetUnitRulesParam(unitID,"baseSpeedMult") or 1)*SPEED
 		
 		-- extend left
 		Turn(lfleg, x_axis, math.rad(-50), math.rad(25)*speedmult)
@@ -130,7 +130,7 @@ end
 
 function script.Create()
 	--StartThread(Walk)
-	StartThread(SmokeUnit, smokePiece)
+	StartThread(GG.Script.SmokeUnit, smokePiece)
 	StartThread(WeaponRangeUpdate)
 	local height = select(2, Spring.GetUnitPosition(unitID))
 	if height < -20 then
@@ -225,7 +225,7 @@ end
 function script.BlockShot(num, targetID)
 	if num == 2 then -- torpedoes
 		-- Lower than real damage (180) to help against Duck regen case.
-		return GG.OverkillPrevention_CheckBlock(unitID, targetID, 172, 40, true)
+		return GG.OverkillPrevention_CheckBlock(unitID, targetID, 172, 40)
 	end
 	return false
 end
@@ -245,18 +245,18 @@ end
 function script.Killed(recentDamage, maxHealth)
 	local severity = recentDamage/maxHealth
 	if severity <= .25 then
-		Explode(base, sfxNone)
+		Explode(base, SFX.NONE)
 		return 1
 	elseif (severity <= .50) then
-		Explode(pelvis, sfxNone)
+		Explode(pelvis, SFX.NONE)
 		return 1
 	elseif (severity <= .99) then
-		Explode(pelvis, sfxShatter)
-		Explode(torso, sfxFall + sfxSmoke + sfxFire + sfxExplode)
+		Explode(pelvis, SFX.SHATTER)
+		Explode(torso, SFX.FALL + SFX.SMOKE + SFX.FIRE + SFX.EXPLODE)
 		return 2
 	else
-		Explode(pelvis, sfxShatter)
-		Explode(torso, sfxFall + sfxSmoke + sfxFire + sfxExplode)
+		Explode(pelvis, SFX.SHATTER)
+		Explode(torso, SFX.FALL + SFX.SMOKE + SFX.FIRE + SFX.EXPLODE)
 		return 2
 	end
 end

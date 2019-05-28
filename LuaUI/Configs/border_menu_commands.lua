@@ -3,7 +3,7 @@ VFS.Include("LuaRules/Configs/customcmds.h.lua")
 --FIXME: use this table until state tooltip detection is fixed
 local tooltips = {
 	priority = "Priority: Set construction priority (low, normal, high)",
-	retreat = "Retreat: Retreat to closest retreat point at 30/60/90% of health (right-click to disable)",
+	retreat = "Retreat: Retreat to closest retreat point at 30/65/99% of health (right-click to disable)",
 	landat = "Repair level: set the HP % at which this aircraft will go to a repair pad (0, 30, 50, 80)",
 	factoryGuard = "Auto Assist: Newly built constructors automatically assist their factory",
 	diveBomb = "Dive bomb (never; target under shield; any target; always (including moving))",
@@ -11,6 +11,7 @@ local tooltips = {
 	fireState = "Fire State: Sets under what conditions a unit will fire without an explicit attack order (never, when attacked, always)",
 	moveState = "Move State: Sets how far out of its way a unit will move to attack enemies",
 	["repeat"] = "Repeat: if on the unit will continously push finished orders to the end of its order queue",
+	autoCallTransport = "Automatically call transports between constructor tasks."
 }
 
 
@@ -41,60 +42,59 @@ local buildoptions = {
 
 	{-- economy
 		-- common
-		{ "cormex" },
-		{ "armwin" },-- wind
-		{ "armsolar",  notSea=true },
-		{ "armnanotc" },-- caretaker
-		{ "geo",  notSea=true },
-		{ "armasp" },-- repair pad
+		{ "staticmex" },
+		{ "energywind" },-- wind
+		{ "energysolar",  notSea=true },
+		{ "staticcon" },-- caretaker
+		{ "energygeo",  notSea=true },
+		{ "staticrearm" },-- repair pad
 
 		-- adv
-		{ "armestor",  tech=2 },-- pylon
-		{ "armmstor",  tech=2 },-- storage
-		{ "armfus",  tech=2 },
-		{ "cafus",  tech=2 },-- singularity
+		{ "energypylon",  tech=2 },-- pylon
+		{ "staticstorage",  tech=2 },-- storage
+		{ "energyfusion",  tech=2 },
+		{ "energysingu",  tech=2 },-- singularity
 	},
 
 
 	{-- point_defense
-		{ "corllt",  notSea=true },
-		{ "armartic",  notSea=true },-- Faraday
+		{ "turretlaser",  notSea=true },
+		{ "turretemp",  notSea=true },-- Faraday
 		{ "turrettorp",  notLand=true },-- you can build it on land, but torpedoes are only useful around water.
-		{ "armdeva" },-- Stardust
-		{ "corgrav",  notSea=true },-- newton
-		{ "armpb",  notSea=true },-- Popup gauss
-		{ "corhlt",  tech=2 },-- peoples should prefer Stardust, Faraday, Newton, Urchin more.
-		{ "cordoom",  tech=2, notSea=true },
-		{ "armanni",  tech=3, notSea=true },
-		{ "corbhmth",  tech=3, notSea=true },
-		{ "armamd",  tech=3, notSea=true },-- Protector
+		{ "turretriot" },-- Stardust
+		{ "turretimpulse",  notSea=true },-- newton
+		{ "turretgauss",  notSea=true },-- Popup gauss
+		{ "turretheavylaser",  tech=2 },-- peoples should prefer Stardust, Faraday, Newton, Urchin more.
+		{ "turretheavy",  tech=2, notSea=true },
+		{ "turretantiheavy",  tech=3, notSea=true },
+		{ "staticarty",  tech=3, notSea=true },
+		{ "staticantinuke",  tech=3, notSea=true },-- Antinuke
 	},
 
 	{-- air_defense
 		{ "corr" },-- mt
-		{ "corrazor" },
-		{ "missiletower" },-- hacksaw
-		{ "corflak" },
+		{ "turretaalaser" },
+		{ "turretaaclose" },-- hacksaw
+		{ "turretaaflak" },
 
-		{ "armcir",  tech=2 },-- chainsaw
-		{ "screamer",  tech=3 },
+		{ "turretaafar",  tech=2 },-- chainsaw
+		{ "turretaaheavy",  tech=3 },
 	},
 
 	{-- special
-		{ "corrad" },
-		{ "armsonar",  notLand=true},
-		{ "armarad",  tech=2 },
-		{ "corjamt",  tech=2 },-- Aegis
-		{ "armjamt",  tech=2 },-- Sneaky Pete
-		{ "missilesilo",  tech=2 },
+		{ "staticradar" },
+		{ "staticheavyradar",  tech=2 },
+		{ "staticshield",  tech=2 },-- Aegis
+		{ "staticjammer",  tech=2 },-- Cornea
+		{ "staticmissilesilo",  tech=2 },
 		{ CMD_RAMP,  tech=3 },
 		{ CMD_LEVEL,  tech=3 },
 		{ CMD_RAISE,  tech=3 },
 		{ CMD_SMOOTH,  tech=3 },
 		{ CMD_RESTORE,  tech=3 },
 		{ CMD_BUMPY,  tech=3 },
-		{ "armbrtha",  tech=3, notSea=true },
-		{ "corsilo",  tech=3, notSea=true },-- Nuke
+		{ "staticheavyarty",  tech=3, notSea=true },
+		{ "staticnuke",  tech=3, notSea=true },-- Nuke
 	},
 
 	{-- super
@@ -182,6 +182,7 @@ local overrides = {
 	[CMD.FIGHT] = { texture = imageDir .. 'Bold/fight.png'},
 	[CMD.GUARD] = { texture = imageDir .. 'Bold/guard.png'},
 	[CMD.MOVE] = { texture = imageDir .. 'Bold/move.png'},
+	[CMD_RAW_MOVE] = { texture = imageDir .. 'Bold/move.png'},
 	[CMD.PATROL] = { texture = imageDir .. 'Bold/patrol.png'},
 	[CMD.WAIT] = { texture = imageDir .. 'Bold/wait.png'},
 
@@ -218,12 +219,14 @@ local overrides = {
 
 	[CMD_PLACE_BEACON] = {caption= '', texture = imageDir .. 'Bold/drop_beacon.png'},
 
+	[CMD_RECALL_DRONES] = {caption= '', texture = imageDir .. 'Bold/recall_drones.png'},
+
 	-- states
 	[CMD.ONOFF] = { texture = {imageDir .. 'states/off.png', imageDir .. 'states/on.png'}, caption=''},
 	[CMD_UNIT_AI] = { texture = {imageDir .. 'states/bulb_off.png', imageDir .. 'states/bulb_on.png'}, caption=''},
 	[CMD.REPEAT] = { texture = {imageDir .. 'states/repeat_off.png', imageDir .. 'states/repeat_on.png'}, caption='', tooltip = tooltips["repeat"]},
 	[CMD.CLOAK] = { texture = {imageDir .. 'states/cloak_off.png', imageDir .. 'states/cloak_on.png'},
-		caption ='', tooltip =  'Unit cloaking state - press \255\0\255\0K\008 to toggle'},
+		caption ='', tooltip =  'Desired cloak state'},
 	[CMD_CLOAK_SHIELD] = { texture = {imageDir .. 'states/areacloak_off.png', imageDir .. 'states/areacloak_on.png'},
 		caption ='',	tooltip = 'Area Cloaker State'},
 	[CMD_STEALTH] = { texture = {imageDir .. 'states/stealth_off.png', imageDir .. 'states/stealth_on.png'}, caption ='' },
@@ -231,6 +234,8 @@ local overrides = {
 		caption='', tooltip = tooltips.priority},
 	[CMD_FACTORY_GUARD] = { texture = {imageDir .. 'states/autoassist_off.png', imageDir .. 'states/autoassist_on.png'},
 		caption='', tooltip = tooltips.factoryGuard,},
+	[CMD_AUTO_CALL_TRANSPORT] = { texture = {imageDir .. 'states/auto_call_off.png', imageDir .. 'states/auto_call_on.png'},
+		text='', tooltip = tooltips.autoCallTransport,},
 	[CMD.MOVE_STATE] = { texture = {imageDir .. 'states/move_hold.png', imageDir .. 'states/move_engage.png', imageDir .. 'states/move_roam.png'}, caption='', tooltip = tooltips.moveState},
 	[CMD.FIRE_STATE] = { texture = {imageDir .. 'states/fire_hold.png', imageDir .. 'states/fire_return.png', imageDir .. 'states/fire_atwill.png'}, caption='', tooltip = tooltips.fireState},
 	[CMD_RETREAT] = { texture = {imageDir .. 'states/retreat_off.png', imageDir .. 'states/retreat_30.png', imageDir .. 'states/retreat_60.png', imageDir .. 'states/retreat_90.png'},
@@ -244,10 +249,12 @@ local overrides = {
 	[CMD_UNIT_BOMBER_DIVE_STATE] = { texture = {imageDir .. 'states/divebomb_off.png', imageDir .. 'states/divebomb_shield.png', imageDir .. 'states/divebomb_attack.png', imageDir .. 'states/divebomb_always.png'},
 		caption = '', tooltip = tooltips.diveBomb,},
 	[CMD_UNIT_KILL_SUBORDINATES] = {texture = {imageDir .. 'states/capturekill_off.png', imageDir .. 'states/capturekill_on.png'}, caption=''},
+	[CMD_PUSH_PULL] = {texture = {imageDir .. 'states/pull_alt.png', imageDir .. 'states/push_alt.png'}, caption=''},
 	[CMD_DONT_FIRE_AT_RADAR] = {texture = {imageDir .. 'states/stealth_on.png', imageDir .. 'states/stealth_off.png'}, caption=''},
 	[CMD.TRAJECTORY] = { texture = {imageDir .. 'states/traj_low.png', imageDir .. 'states/traj_high.png'}, caption=''},
 	[CMD_AIR_STRAFE] = { texture = {imageDir .. 'states/strafe_off.png', imageDir .. 'states/strafe_on.png'}, caption=''},
 	[CMD_UNIT_FLOAT_STATE] = { texture = {imageDir .. 'states/amph_sink.png', imageDir .. 'states/amph_attack.png', imageDir .. 'states/amph_float.png'}, caption=''},
+	[CMD_SELECTION_RANK] = { texture = {imageDir .. 'states/selection_rank_0.png', imageDir .. 'states/selection_rank_1.png', imageDir .. 'states/selection_rank_2.png', imageDir .. 'states/selection_rank_3.png'}, text=''},
 	}
 
 -- noone really knows what this table does but it's needed for epic menu to get the hotkey
@@ -270,6 +277,8 @@ local custom_cmd_actions = {	-- states are 2, not states are 1
 	loadunits=1,
 	unloadunits=1,
 	areaattack=1,
+
+	rawmove=1,
 
 	-- states
 	onoff=2,
@@ -299,6 +308,7 @@ local custom_cmd_actions = {	-- states are 2, not states are 1
 	setferry=1,
 	radialmenu=1,
 	placebeacon=1,
+	evacuate=1,
 
 	-- terraform
 	rampground=1,
@@ -324,11 +334,12 @@ local custom_cmd_actions = {	-- states are 2, not states are 1
 	antinukezone=2,
 	unitai=2,
 	unit_kill_subordinates=2,
+	pushpull=2,
 	autoassist=2,
+	autocalltransport=2,
 	airstrafe=2,
 	divestate=2,
-
-
+	selection_rank = 2,
 }
 
 

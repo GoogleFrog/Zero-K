@@ -3,16 +3,12 @@ unitDef = {
   name                   = [[Anarchid]],
   description            = [[Riot EMP Spider]],
   acceleration           = 0.26,
-  brakeRate              = 0.26,
-  buildCostEnergy        = 250,
+  brakeRate              = 0.78,
   buildCostMetal         = 250,
-  buildPic               = [[arm_venom.png]],
-  buildTime              = 250,
-  canAttack              = true,
+  buildPic               = [[spideremp.png]],
   canGuard               = true,
   canMove                = true,
   canPatrol              = true,
-  canstop                = [[1]],
   category               = [[LAND]],
   collisionVolumeOffsets = [[0 0 0]],
   collisionVolumeScales  = [[40 30 40]],
@@ -20,8 +16,6 @@ unitDef = {
   corpse                 = [[DEAD]],
 
   customParams           = {
-
-    helptext       = [[The Anarchid is like a Starlight, but a Spider]],
   },
 
   explodeAs              = [[BIG_UNITEX]],
@@ -40,7 +34,6 @@ unitDef = {
   noChaseCategory        = [[TERRAFORM FIXEDWING SATELLITE SUB]],
   objectName             = [[spideranarchid.s3o]],
   script                 = [[spideranarchid.lua]],
-  seismicSignature       = 4,
   selfDestructAs         = [[BIG_UNITEX]],
 
   sfxtypes               = {
@@ -102,7 +95,6 @@ unitDef = {
       soundStart              = [[weapon/laser/laser_burn8]],
       soundTrigger            = true,
       sweepfire               = false,
-      targetMoveError         = 0.1,
       texture1                = [[largelaser]],
       texture2                = [[flare]],
       texture3                = [[flare]],
@@ -120,30 +112,17 @@ unitDef = {
   featureDefs            = {
 
     DEAD  = {
-      description      = [[Wreckage - Venom]],
       blocking         = false,
-      damage           = 750,
-      energy           = 0,
       featureDead      = [[HEAP]],
       footprintX       = 2,
       footprintZ       = 2,
-      metal            = 80,
       object           = [[venom_wreck.s3o]],
-      reclaimable      = true,
-      reclaimTime      = 80,
-
     },
     HEAP  = {
-      description      = [[Debris - Venom]],
       blocking         = false,
-      damage           = 750,
-      energy           = 0,
       footprintX       = 2,
       footprintZ       = 2,
-      metal            = 40,
       object           = [[debris2x2a.s3o]],
-      reclaimable      = true,
-      reclaimTime      = 40,
     },
 
   },

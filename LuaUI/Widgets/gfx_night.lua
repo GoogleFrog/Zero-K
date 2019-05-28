@@ -55,7 +55,6 @@ local secondsPerDay        = 600                 --seconds per day
 
 local maxBeamDivergent = 2 					--how big the light beam can expand if unit get further away from ground
 
-local reverseCompatibility = (Game.version:find('91.0') == 1) or (Game.version:find('94') and not Game.version:find('94.1.1')) -- for UnitDef Tag
 --------------------------------------------------------------------------------
 --other vars
 --------------------------------------------------------------------------------
@@ -97,12 +96,14 @@ options = {
 		type = 'bool',
 		value = true,
 		desc = 'Bright units even at night',
+		noHotkey = true,
 	},
 	cycle = {
 		name = "Day/night cycle",
 		type = 'bool',
 		value = true,
 		desc = 'Enable day/night cycle',
+		noHotkey = true,
 	},
 	time = {
 		name = "Time of day",
@@ -135,6 +136,7 @@ options = {
 		type = 'bool',
 		value = true,
 		desc = 'Display searchlight beams',
+		noHotkey = true,
 	},
 	bases = {
 		name = "Searchlight Bases",
@@ -145,6 +147,7 @@ options = {
 			{ key = 'full', name = 'Full', },
 		},
 		value = 'full',
+		noHotkey = true,
 	},
 }
 
@@ -316,11 +319,10 @@ local function DrawSearchlights()
 		  local ecc
 		  local heading
 		  local baseX, baseZ
-		  local speed = unitDef.speed
 		  local leadDist_to_height_ratio = 1
 		  local isAboveNominalHeight = false
 		  
-		  if (not speed or speed == 0) then
+		  if unitDef.isImmobile then
 			cache[defID]= cache[defID] or {}
 			if not cache[defID].leadDist then
 				leadDistance = unitRadius * 2
@@ -333,8 +335,7 @@ local function DrawSearchlights()
 			leadDistance = cache[defID].leadDist
 			leadDist_to_height_ratio = cache[defID].lhRatio
 			radius = unitRadius
-		  elseif (reverseCompatibility and (unitDef.type == "Bomber" or unitDef.type == "Fighter") or 
-		  (unitDef.isBomberAirUnit or unitDef.isFighterAirUnit)) then --https://github.com/spring/spring/blob/develop/doc/changelog.txt
+		  elseif unitDef.isBomberAirUnit or unitDef.isFighterAirUnit then
 			local vx, _, vz = GetUnitVelocity(unitID)
 			if not vx or not vz then --sometimes happen when seeing enemy airplane
 				vx=0
@@ -363,6 +364,7 @@ local function DrawSearchlights()
 			leadDist_to_height_ratio = cache[defID].lhRatio
 			radius = unitRadius * 2
 		  else
+			local speed = unitDef.speed
 		    cache[defID]= cache[defID] or {}
 			if not cache[defID].leadDist then
 				leadDistance = searchlightGroundLeadTime * speed
@@ -486,7 +488,7 @@ function widget:Initialize()
         or string.find(unitDef.name, "roost") 
         or string.find(unitDef.humanName, "Chicken")
         or string.find(unitDef.humanName, "Montro")
-        or (unitDef.speed == 0 and not 
+        or (unitDef.isImmobile and not
              (unitDef.weapons and unitDef.weapons[1]))
        ) then
       noLightList[unitDefID] = true

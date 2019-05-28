@@ -3,13 +3,18 @@ local weaponDef = {
 	name                    = [[Multi-Stunner]],
 	areaOfEffect            = 144,
 	avoidFeature            = false,
+	beamTTL                 = 12,
 	burst                   = 16,
 	burstRate               = 0.1875,
 	commandFire             = true,
 
 	customParams            = {
-		muzzleEffectFire = [[custom:YELLOW_LIGHTNING_MUZZLE]],
+		muzzleEffectShot = [[custom:YELLOW_LIGHTNING_MUZZLE]],
 		slot = [[3]],
+		manualfire = 1,
+
+		light_color = [[0.7 0.7 0.2]],
+		light_radius = 320,
 	},
 
 	craterBoost             = 0,
@@ -17,7 +22,7 @@ local weaponDef = {
 	cylinderTargeting       = 0,
 
 	damage                  = {
-		default = 542.534722222222,
+		default = 550,
 	},
 
 	duration                = 8,
@@ -30,9 +35,9 @@ local weaponDef = {
 	interceptedByShieldType = 1,
 	noSelfDamage            = true,
 	paralyzer               = true,
-	paralyzeTime            = 6,
+	paralyzeTime            = 8,
 	range                   = 360,
-	reloadtime              = 12,
+	reloadtime              = 25,
 	rgbColor                = [[1 1 0.25]],
 	soundStart              = [[weapon/lightning_fire]],
 	soundTrigger            = false,

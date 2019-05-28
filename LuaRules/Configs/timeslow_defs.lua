@@ -1,5 +1,3 @@
-local array = {}
-
 ------------------------
 -- Config
 
@@ -18,7 +16,7 @@ local UPDATE_PERIOD = 15 -- I'd prefer if this was not changed
 
 
 local weapons = {
-	corcrw_timedistort = { slowDamage = 100, onlySlow = true, scaleSlow = true },
+	gunshipkrow_timedistort = { slowDamage = 100, onlySlow = true, scaleSlow = true },
 	slowmissile_weapon = { slowDamage = 1, onlySlow = true, scaleSlow = true },
 	vehdisable_disableray = { slowDamage = 30, scaleSlow = false },
 }
@@ -41,18 +39,32 @@ local presets = {
 ------------------------
 -- Send the Config
 
+local function Process(weaponData)
+	if weaponData.overslow then
+		-- Convert from extra frames into extra slow factor
+		weaponData.overslow = weaponData.overslow*DEGRADE_FACTOR/30
+	end
+	return weaponData
+end
+
+local weaponArray = {}
+
 for name,data in pairs(WeaponDefNames) do
 	local custom = {scaleSlow = true}
 	local cp = data.customParams
 	if cp.timeslow_preset then
 		weapons[name] = Spring.Utilities.CopyTable(presets[cp.timeslow_preset])
 	elseif cp.timeslow_damagefactor or cp.timeslow_damage then
-		custom.slowDamage = cp.timeslow_damage or (cp.timeslow_damagefactor * (data.damages and data.damages[0] or 0))
+		custom.slowDamage = cp.timeslow_damage or (cp.timeslow_damagefactor * cp.raw_damage)
+		custom.overslow = cp.timeslow_overslow_frames
 		custom.onlySlow = (cp.timeslow_onlyslow) or false
 		custom.smartRetarget = cp.timeslow_smartretarget and tonumber(cp.timeslow_smartretarget) or nil
+		custom.smartRetargetHealth = cp.timeslow_smartretargethealth and tonumber(cp.timeslow_smartretargethealth) or nil
 		weapons[name] = custom
 	end
-	if weapons[name] then array[data.id] = weapons[name] end
+	if weapons[name] then
+		weaponArray[data.id] = Process(weapons[name])
+	end
 end
 
-return array, MAX_SLOW_FACTOR, DEGRADE_TIMER*30/UPDATE_PERIOD, DEGRADE_FACTOR*UPDATE_PERIOD/30, UPDATE_PERIOD
+return weaponArray, MAX_SLOW_FACTOR, DEGRADE_TIMER*30/UPDATE_PERIOD, DEGRADE_FACTOR*UPDATE_PERIOD/30, UPDATE_PERIOD

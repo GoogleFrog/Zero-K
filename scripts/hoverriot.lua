@@ -1,16 +1,12 @@
 local base = piece 'base' 
 local flare = piece 'flare' 
-local wake1 = piece 'wake1' 
-local wake2 = piece 'wake2' 
-local wake3 = piece 'wake3' 
-local wake4 = piece 'wake4' 
-local wake5 = piece 'wake5' 
-local wake6 = piece 'wake6' 
-local wake7 = piece 'wake7' 
-local wake8 = piece 'wake8' 
 local ground1 = piece 'ground1' 
 local barrel = piece 'barrel' 
 
+local wakes = {}
+for i = 1, 8 do
+	wakes[i] = piece ('wake' .. i)
+end
 include "constants.lua"
 
 -- Signal definitions
@@ -39,35 +35,25 @@ function HitByWeaponThread(x, z)
 	Turn(base, x_axis, 0, math.rad(30))
 end
 
---[[
-function script.HitByWeapon(x, z)
-	StartThread(HitByWeaponThread, x, z)
+local sfxNum = 0
+function script.setSFXoccupy(num)
+	sfxNum = num
 end
-]]
 
 local function MoveScript()
-	while true do 
-		if math.random() < 0.5 then
-			EmitSfx(wake1, 5)
-			EmitSfx(wake3, 5)
-			EmitSfx(wake5, 5)
-			EmitSfx(wake7, 5)
-			EmitSfx(wake1, 3)
-			EmitSfx(wake3, 3)
-			EmitSfx(wake5, 3)
-			EmitSfx(wake7, 3)
-		else
-			EmitSfx(wake2, 5)
-			EmitSfx(wake4, 5)
-			EmitSfx(wake6, 5)
-			EmitSfx(wake8, 5)
-			EmitSfx(wake2, 3)
-			EmitSfx(wake4, 3)
-			EmitSfx(wake6, 3)
-			EmitSfx(wake8, 3)
+	while Spring.GetUnitIsStunned(unitID) do
+		Sleep(2000)
+	end
+	while true do
+		if not Spring.GetUnitIsCloaked(unitID) then
+			if (sfxNum == 1 or sfxNum == 2) and select(2, Spring.GetUnitPosition(unitID)) == 0 then
+				for i = 1, 8 do
+					EmitSfx(wakes[i], 3)
+				end
+			else
+				EmitSfx(ground1, 1024)
+			end
 		end
-	
-		EmitSfx(ground1, 1024+0)
 		Sleep(150)
 	end
 end
@@ -77,7 +63,7 @@ function script.Create()
 	Hide(ground1)
 	Move(ground1, x_axis, 24.2)
 	Move(ground1, y_axis, -8)
-	StartThread(SmokeUnit, {base})
+	StartThread(GG.Script.SmokeUnit, {base})
 	StartThread(WobbleUnit)
 	StartThread(MoveScript)
 end
@@ -85,8 +71,8 @@ end
 function script.AimWeapon(num, heading, pitch)
 	Signal(SIG_AIM)
 	SetSignalMask(SIG_AIM)
-	Turn(barrel, y_axis, heading, math.rad(300.000000))
-	Turn(barrel, x_axis, -pitch, math.rad(300.000000))
+	Turn(barrel, y_axis, heading, math.rad(750))
+	Turn(barrel, x_axis, -pitch, math.rad(600))
 	WaitForTurn(barrel, y_axis)
 	WaitForTurn(barrel, x_axis)
 	return true
@@ -103,30 +89,12 @@ end
 function script.Killed(recentDamage, maxHealth)
 	local severity = recentDamage / maxHealth
 	if severity <= 0.25 then
-		Explode(base, sfxNone)
-		Explode(wake1, sfxNone)
-		Explode(wake2, sfxNone)
-		Explode(wake3, sfxNone)
-		Explode(wake4, sfxNone)
-		Explode(wake5, sfxNone)
-		Explode(wake6, sfxNone)
+		Explode(base, SFX.NONE)
 		return 1
 	elseif severity <= 0.50 then
-		Explode(base, sfxNone)
-		Explode(wake1, sfxFall)
-		Explode(wake2, sfxFall)
-		Explode(wake3, sfxFall)
-		Explode(wake4, sfxFall)
-		Explode(wake5, sfxFall)
-		Explode(wake6, sfxFall)
+		Explode(base, SFX.NONE)
 		return 1
 	end
-	Explode(base, sfxNone)
-	Explode(wake1, sfxSmoke + sfxFall + sfxFire + sfxExplodeOnHit)
-	Explode(wake2, sfxSmoke + sfxFall + sfxFire + sfxExplodeOnHit)
-	Explode(wake3, sfxSmoke + sfxFall + sfxFire + sfxExplodeOnHit)
-	Explode(wake4, sfxSmoke + sfxFall + sfxFire + sfxExplodeOnHit)
-	Explode(wake5, sfxSmoke + sfxFall + sfxFire + sfxExplodeOnHit)
-	Explode(wake6, sfxSmoke + sfxFall + sfxFire + sfxExplodeOnHit)
+	Explode(base, SFX.SHATTER)
 	return 2
 end

@@ -15,12 +15,12 @@ function combatHandler.CreateCombatHandler(allyTeamID)
 
 	local unitList = UnitListHandler.CreateUnitList()
 
-	function RunJobHandler()
+	local function RunJobHandler()
 		if unscoutedCount > 0 then
 			for unitID,_ in scoutList.Iterator() do
-				local cQueue = spGetCommandQueue(unitID, 1)
-				if cQueue then
-					if #cQueue == 0 then
+				local queueSize = spGetCommandQueue(unitID, 0)
+				if queueSize then
+					if queueSize == 0 then
 						local randIndex = math.floor(math.random(1,unscoutedCount))
 						GiveClampedOrderToUnit(unitID, CMD_FIGHT , unscoutedPoints[randIndex], {})
 					end

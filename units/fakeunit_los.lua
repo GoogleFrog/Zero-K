@@ -3,7 +3,7 @@ unitDef = {
   name                  = [[LOS Provider]],
   description           = [[Knows all and sees all]],
   acceleration          = 1,
-  brakeRate             = 1,
+  brakeRate             = 0.8,
   buildCostEnergy       = 0.45,
   buildCostMetal        = 0.45,
   builder               = false,
@@ -20,9 +20,9 @@ unitDef = {
   
   customParams          = {
       dontcount = [[1]],
+      completely_hidden = 1, -- for widget-senpai not to notice me
   },
   
-  explodeAs             = [[TINY_BUILDINGEX]],
   floater               = true,
   footprintX            = 3,
   footprintZ            = 3,
@@ -31,7 +31,6 @@ unitDef = {
   idleAutoHeal          = 10,
   idleTime              = 300,
   levelGround           = false,
-  mass                  = 10,
   maxDamage             = 900000,
   maxVelocity           = 5,
   maxWaterDepth         = 0,
@@ -39,8 +38,6 @@ unitDef = {
   noAutoFire            = false,
   objectName            = [[debris1x1b.s3o]],
   script                = [[fakeunit_los.lua]],
-  seismicSignature      = 0,
-  side                  = [[ARM]],
   sightDistance         = 500,
   stealth               = true,
   turnRate              = 0,

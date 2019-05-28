@@ -56,7 +56,7 @@ end
 -- Unit Handling
 
 local function AddUnitTexture(unitID, attributes, tex)
-	if (not VFS.FileExists(tex)) then
+	if not (tex and VFS.FileExists(tex)) then
 		return
 	end
 
@@ -69,7 +69,7 @@ local function AddUnitTexture(unitID, attributes, tex)
 		textures[tex].units[unitID] = {data = {}, count = 0}
 	end	
 		
-	for i=1,#attributes do
+	for i = 1,#attributes do
 		textures[tex].units[unitID].count = textures[tex].units[unitID].count + 1
 		textures[tex].units[unitID].data[textures[tex].units[unitID].count] = {
 			piece = pieceMap[attributes[i].piece],
@@ -84,7 +84,7 @@ local function AddUnitTexture(unitID, attributes, tex)
 	end
 end
 
-local function RemoveUnit(unitID, attributes, tex)
+local function RemoveUnit(unitID, tex)
 	textures[tex].units[unitID] = nil
 	textures[tex].count = textures[tex].count - 1
 	if textures[tex].count == 0 then
@@ -92,22 +92,32 @@ local function RemoveUnit(unitID, attributes, tex)
 	end
 end
 
-local function SetupPossibleCommander(unitID,  unitDefID)
+local function SetupPossibleCommander(unitID,  unitDefID, teamID)
 	if unitDefID and not unitAlreadyAdded[unitID] then
 		unitAlreadyAdded[unitID] = true
 		local ud = UnitDefs[unitDefID]
-		if ud.customParams and ud.customParams.commtype and ud.customParams.level then
-			local commtype = ud.customParams.commtype
-			local level = ud.customParams.level
+		if (ud.customParams and ud.customParams.commtype and ud.customParams.level) or Spring.GetUnitRulesParam(unitID, "comm_level") then
+			local commtype = Spring.GetUnitRulesParam(unitID, "comm_chassis") or ud.customParams.commtype
+			local level = Spring.GetUnitRulesParam(unitID, "comm_level") or ud.customParams.level
 			if commtypeTable[commtype] and commtypeTable[commtype][level] then
 				local points = commtypeTable[commtype][level]
-				local decIconFunc, err = loadstring("return" .. (ud.customParams.decorationicons or ""))
-				local decIcons = decIconFunc() or {}
-				for pointName, data in pairs(points) do
-					local imageName = decIcons[pointName]
-					if imageName then
-						local image = GetImageDir(imageName)
-						AddUnitTexture(unitID, data,  image)
+				if Spring.GetUnitRulesParam(unitID, "comm_level") then
+					for pointName, data in pairs(points) do
+						local imageName = Spring.GetUnitRulesParam(unitID, "comm_banner_" .. pointName)
+						if imageName then
+							local image = GetImageDir(imageName)
+							AddUnitTexture(unitID, data,  image)
+						end
+					end
+				else
+					local decIconFunc, err = loadstring("return" .. (ud.customParams.decorationicons or ""))
+					local decIcons = decIconFunc() or {}
+					for pointName, data in pairs(points) do
+						local imageName = decIcons[pointName]
+						if imageName then
+							local image = GetImageDir(imageName)
+							AddUnitTexture(unitID, data,  image)
+						end
 					end
 				end
 			end
@@ -119,16 +129,26 @@ local function RemovePossibleCommander(unitID,  unitDefID)
 	if unitDefID then
 		unitAlreadyAdded[unitID] = nil
 		local ud = UnitDefs[unitDefID]
-		if ud.customParams and ud.customParams.commtype and ud.customParams.level then
-			local commtype = ud.customParams.commtype
-			local level = ud.customParams.level
+		if (ud.customParams and ud.customParams.commtype and ud.customParams.level) or Spring.GetUnitRulesParam(unitID, "comm_level") then
+			local commtype = Spring.GetUnitRulesParam(unitID, "comm_chassis") or ud.customParams.commtype
+			local level = Spring.GetUnitRulesParam(unitID, "comm_level") or ud.customParams.level
 			if commtypeTable[commtype] and commtypeTable[commtype][level] then
 				local points = commtypeTable[commtype][level]
-				for pointName, data in pairs(points) do
-					local imageName = (ud.customParams.decorationicons or {}).pointName
-					if imageName then
-						local image = GetImageDir(imageName)
-						AddUnitTexture(unitID, data,  image)
+				if Spring.GetUnitRulesParam(unitID, "comm_level") then
+					for pointName, data in pairs(points) do
+						local imageName = Spring.GetUnitRulesParam(unitID, "comm_banner_" .. pointName)
+						if imageName then
+							local image = GetImageDir(imageName)
+							AddUnitTexture(unitID, data,  image)
+						end
+					end
+				else
+					for pointName, data in pairs(points) do
+						local imageName = (ud.customParams.decorationicons or {}).pointName
+						if imageName then
+							local image = GetImageDir(imageName)
+							AddUnitTexture(unitID, data,  image)
+						end
 					end
 				end
 			end
@@ -138,15 +158,17 @@ end
 
 function widget:UnitEnteredLos(unitID, unitTeam)
 	local unitDefID = spGetUnitDefID(unitID)
-	SetupPossibleCommander(unitID,  unitDefID)
+	SetupPossibleCommander(unitID,  unitDefID, unitTeam)
 end
 
 function widget:UnitCreated( unitID,  unitDefID,  unitTeam)
-	SetupPossibleCommander(unitID,  unitDefID)
+	SetupPossibleCommander(unitID,  unitDefID, unitTeam)
 end
 
 function widget:UnitDestroyed( unitID,  unitDefID,  unitTeam)
-	if not Spring.IsUnitAllied(unitID) then return end
+	if not Spring.IsUnitAllied(unitID) then 
+		return 
+	end
 	RemovePossibleCommander(unitID,  unitDefID)
 end
 
@@ -170,17 +192,23 @@ local function DrawWorldFunc()
 	for textureName, texData in pairs(textures) do
 		glTexture(textureName)
 		for unitID, unitData in pairs(texData.units) do
-			local unit = texData.units
-			for i = 1, unitData.count do
-				local attributes = unitData.data[i]
-				glPushMatrix()
-				glUnitMultMatrix(unitID)
-				glUnitPieceMultMatrix(unitID, attributes.piece)
-				glTranslate(attributes.offset[1],attributes.offset[2],attributes.offset[3])
-				glRotate(attributes.rotation,attributes.rotVector[1],attributes.rotVector[2],attributes.rotVector[3])
-				glColor(1,1,1,attributes.alpha)
-				glTexRect(-attributes.width, -attributes.height, attributes.width, attributes.height)
-				glPopMatrix()
+			local unitDefID = Spring.GetUnitDefID(unitID)
+			if unitDefID and UnitDefs[unitDefID].customParams.commtype then
+				local unit = texData.units
+				for i = 1, unitData.count do
+					local attributes = unitData.data[i]
+					glPushMatrix()
+					glUnitMultMatrix(unitID)
+					glUnitPieceMultMatrix(unitID, attributes.piece)
+					glTranslate(attributes.offset[1],attributes.offset[2],attributes.offset[3])
+					glRotate(attributes.rotation,attributes.rotVector[1],attributes.rotVector[2],attributes.rotVector[3])
+					glColor(1,1,1,attributes.alpha)
+					glTexRect(-attributes.width, -attributes.height, attributes.width, attributes.height)
+					glPopMatrix()
+				end
+			else
+				-- Requires more work
+				--RemoveUnit(unitID, textureName)
 			end
 		end
 	end

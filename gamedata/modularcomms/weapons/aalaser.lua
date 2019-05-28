@@ -3,7 +3,7 @@ local weaponDef = {
 	name                    = [[Anti-Air Laser]],
 	areaOfEffect            = 12,
 	beamDecay               = 0.736,
-	beamTime                = 0.01,
+	beamTime                = 1/30,
 	beamttl                 = 15,
 	canattackground         = false,
 	coreThickness           = 0.5,
@@ -13,6 +13,9 @@ local weaponDef = {
 
 	customParams            = {
 		slot = [[5]],
+
+		light_color = [[0.2 1.2 1.2]],
+		light_radius = 120,
 	},
 
 	damage                  = {
@@ -29,7 +32,6 @@ local weaponDef = {
 	laserFlareSize          = 3.25,
 	minIntensity            = 1,
 	noSelfDamage            = true,
-	pitchtolerance          = 8192,
 	range                   = 800,
 	reloadtime              = 0.1,
 	rgbColor                = [[0 1 1]],

@@ -262,6 +262,12 @@ local function _DrawCursor(x, y, w, h)
 	gl.Vertex(x + w, y + h)
 end
 
+local function _DrawSelection(x, y, w, h)
+	gl.Vertex(x, y)
+	gl.Vertex(x, y + h)
+	gl.Vertex(x + w, y)
+	gl.Vertex(x + w, y + h)
+end
 
 --//=============================================================================
 --//
@@ -274,7 +280,7 @@ function DrawWindow(obj)
 
   local c = obj.color
   if (c) then
-	gl.Color(c)
+    gl.Color(c)
   else
     gl.Color(1,1,1,1)
   end
@@ -333,7 +339,7 @@ function DrawButton(obj)
   gl.Texture(0,false)
 
   if (obj.caption) then
-    obj.font:Print(obj.caption, w*0.5, h*0.5, "center", "center")
+    obj.font:Print(obj.caption, w*0.5, math.floor(h*0.5 - obj.font.size*0.35), "center", "linecenter")
   end
 end
 
@@ -352,7 +358,6 @@ function DrawComboBox(self)
 		_DrawTextureAspect(self.width - self.padding[3], 0, self.padding[3], self.height, tw,th)
 	gl.Texture(0,false)
 end
-
 
 function DrawEditBox(obj)
 	local skLeft,skTop,skRight,skBottom = unpack4(obj.tiles)
@@ -375,32 +380,48 @@ function DrawEditBox(obj)
 	gl.BeginEnd(GL.TRIANGLE_STRIP, _DrawTiledTexture, 0, 0, obj.width, obj.height,  skLeft,skTop,skRight,skBottom, tw,th)
 	gl.Texture(0,false)
 
-	if (obj.text) then
-		if (obj.offset > obj.cursor) then
+	local text = obj.text	
+	local font = obj.font
+	local displayHint = false
+	
+	if text == "" and not obj.state.focused then
+		text = obj.hint		
+		displayHint = true
+		font = obj.hintFont
+	end
+	
+	if (text) then
+        if obj.passwordInput and not displayHint then 
+            text = string.rep("*", #text)
+        end
+
+		if (obj.offset > obj.cursor) and not obj.multiline then
 			obj.offset = obj.cursor
 		end
 
 		local clientX,clientY,clientWidth,clientHeight = unpack4(obj.clientArea)
 
 		--// make cursor pos always visible (when text is longer than editbox!)
-		repeat
-			local txt = obj.text:sub(obj.offset, obj.cursor)
-			local wt = obj.font:GetTextWidth(txt)
-			if (wt <= clientWidth) then
-				break
-			end
-			if (obj.offset >= obj.cursor) then
-				break
-			end
-			obj.offset = obj.offset + 1
-		until (false)
+		if not obj.multiline then
+			repeat
+				local txt = text:sub(obj.offset, obj.cursor)
+				local wt = font:GetTextWidth(txt)
+				if (wt <= clientWidth) then
+					break
+				end
+				if (obj.offset >= obj.cursor) then
+					break
+				end
+				obj.offset = obj.offset + 1
+			until (false)
+		end
 
-		local txt = obj.text:sub(obj.offset)
+		local txt = text:sub(obj.offset)
 
 		--// strip part at the end that exceeds the editbox
-		local lsize = math.max(0, obj.font:WrapText(txt, clientWidth, clientHeight):len() - 3) -- find a good start (3 dots at end if stripped)
+		local lsize = math.max(0, font:WrapText(txt, clientWidth, clientHeight):len() - 3) -- find a good start (3 dots at end if stripped)
 		while (lsize <= txt:len()) do
-			local wt = obj.font:GetTextWidth(txt:sub(1, lsize))
+			local wt = font:GetTextWidth(txt:sub(1, lsize))
 			if (wt > clientWidth) then
 				break
 			end
@@ -409,11 +430,35 @@ function DrawEditBox(obj)
 		txt = txt:sub(1, lsize - 1)
 
 		gl.Color(1,1,1,1)
-		obj.font:DrawInBox(txt, clientX, clientY, clientWidth, clientHeight, obj.align, obj.valign)
+		if obj.multiline then
+			
+			if obj.parent and obj.parent:InheritsFrom("scrollpanel") then
+				local scrollPosY = obj.parent.scrollPosY
+				local scrollHeight = obj.parent.clientArea[4]
+				
+				local h, d, numLines = obj.font:GetTextHeight(obj.text);
+				local minDrawY = scrollPosY - (h or 0)
+				local maxDrawY = scrollPosY + scrollHeight + (h or 0)
+				
+				for _, line in pairs(obj.physicalLines) do
+					local drawPos = clientY + line.y
+					if drawPos > minDrawY and drawPos < maxDrawY then
+						font:Draw(line.text, clientX, clientY + line.y)
+					end
+				end
+			else
+				for _, line in pairs(obj.physicalLines) do
+					font:Draw(line.text, clientX, clientY + line.y)
+				end
+			end
+		
+		else
+			font:DrawInBox(txt, clientX, clientY, clientWidth, clientHeight, obj.align, obj.valign)
+		end
 
-		if obj.state.focused then
-			local cursorTxt = obj.text:sub(obj.offset, obj.cursor - 1)
-			local cursorX = obj.font:GetTextWidth(cursorTxt)
+		if obj.state.focused and obj.editable then
+			local cursorTxt = text:sub(obj.offset, obj.cursor - 1)
+			local cursorX = font:GetTextWidth(cursorTxt)
 
 			local dt = Spring.DiffTimers(Spring.GetTimer(), obj._interactedTime)
 			local as = math.sin(dt * 8);
@@ -428,6 +473,53 @@ function DrawEditBox(obj)
 			gl.Color(cc[1], cc[2], cc[3], cc[4] * alpha)
 			gl.BeginEnd(GL.TRIANGLE_STRIP, _DrawCursor, cursorX + clientX - 1, clientY, 3, clientHeight)
 		end
+        if obj.selStart and obj.state.focused then
+			local cc = obj.selectionColor
+			gl.Color(cc[1], cc[2], cc[3], cc[4])
+
+			local top, bottom = obj.selStartPhysicalY, obj.selEndPhysicalY
+			local left, right = obj.selStartPhysical,  obj.selEndPhysical
+			if obj.multiline and top > bottom then
+                top, bottom = bottom, top
+				left, right = right, left
+            elseif top == bottom and left > right then
+                left, right = right, left
+            end
+
+			local y = clientY
+			local height = clientHeight
+			if obj.multiline and top == bottom then
+				local line = obj.physicalLines[top]
+				text = line.text
+				y = y + line.y
+				height = line.lh
+			end
+			if not obj.multiline or top == bottom then
+				local leftTxt = text:sub(obj.offset, left - 1)
+				local leftX = font:GetTextWidth(leftTxt)
+				local rightTxt = text:sub(obj.offset, right - 1)
+				local rightX = font:GetTextWidth(rightTxt)
+
+				local w = rightX - leftX
+				-- limit the selection to the editbox width
+				w = math.min(w, obj.width - leftX - 3)
+
+				gl.BeginEnd(GL.TRIANGLE_STRIP, _DrawSelection, leftX + clientX - 1, y, w, height)
+			else
+				local topLine, bottomLine = obj.physicalLines[top], obj.physicalLines[bottom]
+				local leftTxt = topLine.text:sub(obj.offset, left - 1)
+				local leftX = font:GetTextWidth(leftTxt)
+				local rightTxt = bottomLine.text:sub(obj.offset, right - 1)
+				local rightX = font:GetTextWidth(rightTxt)
+
+				gl.BeginEnd(GL.TRIANGLE_STRIP, _DrawSelection, leftX + clientX - 1, clientY + topLine.y, topLine.tw - leftX, topLine.lh)
+				for i = top+1, bottom-1 do
+					local line = obj.physicalLines[i]
+					gl.BeginEnd(GL.TRIANGLE_STRIP, _DrawSelection, clientX - 1, clientY + line.y, line.tw, line.lh)
+				end
+				gl.BeginEnd(GL.TRIANGLE_STRIP, _DrawSelection, clientX - 1, clientY + bottomLine.y, rightX, bottomLine.lh)
+			end
+        end
 	end
 end
 
@@ -668,7 +760,7 @@ function DrawCheckbox(obj)
 
   gl.Color(1,1,1,1)
   if (obj.caption) then
-    obj.font:Print(obj.caption, tx, ty, nil, "center")
+    obj.font:Print(obj.caption, tx, ty - obj.font.size*0.35, nil, "linecenter")
   end
 end
 
@@ -683,37 +775,26 @@ function DrawProgressbar(obj)
 
   local skLeft,skTop,skRight,skBottom = unpack4(obj.tiles)
 
-  if not obj.noSkin then
-    gl.Color(obj.backgroundColor)
-    TextureHandler.LoadTexture(0,obj.TileImageBK,obj)
+  gl.Color(obj.backgroundColor)
+  TextureHandler.LoadTexture(0,obj.TileImageBK,obj)
     local texInfo = gl.TextureInfo(obj.TileImageBK) or {xsize=1, ysize=1}
     local tw,th = texInfo.xsize, texInfo.ysize
 
     gl.BeginEnd(GL.TRIANGLE_STRIP, _DrawTiledTexture, 0,0,w,h, skLeft,skTop,skRight,skBottom, tw,th, 0)
-    --gl.Texture(0,false)
-  end
-  
+  --gl.Texture(0,false)
+
   gl.Color(obj.color)
   TextureHandler.LoadTexture(0,obj.TileImageFG,obj)
     local texInfo = gl.TextureInfo(obj.TileImageFG) or {xsize=1, ysize=1}
     local tw,th = texInfo.xsize, texInfo.ysize
 
-	-- workaround for catalyst >12.6 drivers: do the "clipping" by multiplying width by percentage in glBeginEnd instead of using glClipPlane
-    -- AMD :(
-    --gl.ClipPlane(1, -1,0,0, w*percent)
-    -- gl.BeginEnd(GL.TRIANGLE_STRIP, _DrawTiledTexture, 0,0,w*percent,h, skLeft,skTop,skRight,skBottom, tw,th, 0)
-    --gl.ClipPlane(1, false)
-
-  
-    if (obj.orientation == "horizontal") then
-      gl.BeginEnd(GL.TRIANGLE_STRIP, _DrawTiledTexture, 0,0,w*percent,h, skLeft,skTop,skRight,skBottom, tw,th, 0)
-    else
-      gl.BeginEnd(GL.TRIANGLE_STRIP, _DrawTiledTexture, 0,(h - h*percent),w,h*percent, skLeft,skTop,skRight,skBottom, tw,th, 0)
-    end
+    gl.ClipPlane(1, -1,0,0, w*percent)
+    gl.BeginEnd(GL.TRIANGLE_STRIP, _DrawTiledTexture, 0,0,w,h, skLeft,skTop,skRight,skBottom, tw,th, 0)
+    gl.ClipPlane(1, false)
   gl.Texture(0,false)
 
   if (obj.caption) then
-    (obj.font):Print(obj.caption, w*0.5, h*0.5, "center", "center")
+    (obj.font):Print(obj.caption, w*0.5, h*0.5 - obj.font.size*0.35 , "center", "linecenter")
   end
 end
 
@@ -729,76 +810,71 @@ function DrawTrackbar(self)
   local pdLeft,pdTop,pdRight,pdBottom = unpack4(self.hitpadding)
 
   gl.Color(1,1,1,1)
-  if not self.noDrawBar then
-    TextureHandler.LoadTexture(0,self.TileImage,self)
-      local texInfo = gl.TextureInfo(self.TileImage) or {xsize=1, ysize=1}
-      local tw,th = texInfo.xsize, texInfo.ysize
-      gl.BeginEnd(GL.TRIANGLE_STRIP, _DrawTiledTexture, 0,0,w,h, skLeft,skTop,skRight,skBottom, tw,th, 0)
-  end
-	
-  if not self.noDrawStep then
-    TextureHandler.LoadTexture(0,self.StepImage,self)
-      local texInfo = gl.TextureInfo(self.StepImage) or {xsize=1, ysize=1}
-      local tw,th = texInfo.xsize, texInfo.ysize
-    
-      --// scale the thumb down if we don't have enough space
-      if (th>h) then
-        tw = math.ceil(tw*(h/th))
-        th = h
+
+  TextureHandler.LoadTexture(0,self.TileImage,self)
+    local texInfo = gl.TextureInfo(self.TileImage) or {xsize=1, ysize=1}
+    local tw,th = texInfo.xsize, texInfo.ysize
+    gl.BeginEnd(GL.TRIANGLE_STRIP, _DrawTiledTexture, 0,0,w,h, skLeft,skTop,skRight,skBottom, tw,th, 0)
+
+  TextureHandler.LoadTexture(0,self.StepImage,self)
+    local texInfo = gl.TextureInfo(self.StepImage) or {xsize=1, ysize=1}
+    local tw,th = texInfo.xsize, texInfo.ysize
+
+    --// scale the thumb down if we don't have enough space
+    if (th>h) then
+      tw = math.ceil(tw*(h/th))
+      th = h
+    end
+    if (tw>w) then
+      th = math.ceil(th*(w/tw))
+      tw = w
+    end
+
+    local barWidth = w - (pdLeft + pdRight)
+    local stepWidth = barWidth / ((self.max - self.min)/self.step)
+
+    if ((self.max - self.min)/self.step)<20 then
+      local newStepWidth = stepWidth
+      if (newStepWidth<20) then
+        newStepWidth = stepWidth*2
       end
-      if (tw>w) then
-        th = math.ceil(th*(w/tw))
-        tw = w
+      if (newStepWidth<20) then
+        newStepWidth = stepWidth*5
       end
-    
-      local barWidth = w - (pdLeft + pdRight)
-      local stepWidth = barWidth / ((self.max - self.min)/self.step)
-    
-      if ((self.max - self.min)/self.step)<20 then
-        local newStepWidth = stepWidth
-        if (newStepWidth<20) then
-          newStepWidth = stepWidth*2
-        end
-        if (newStepWidth<20) then
-          newStepWidth = stepWidth*5
-        end
-        if (newStepWidth<20) then
-          newStepWidth = stepWidth*10
-        end
-        stepWidth = newStepWidth
-    
-        local my = h*0.5
-        local mx = pdLeft+stepWidth
-        while (mx<(pdLeft+barWidth)) do
-          gl.TexRect(math.ceil(mx-tw*0.5),math.ceil(my-th*0.5),math.ceil(mx+tw*0.5),math.ceil(my+th*0.5),false,true)
-          mx = mx+stepWidth
-        end
+      if (newStepWidth<20) then
+        newStepWidth = stepWidth*10
       end
-  end
+      stepWidth = newStepWidth
+
+      local my = h*0.5
+      local mx = pdLeft+stepWidth
+      while (mx<(pdLeft+barWidth)) do
+        gl.TexRect(math.ceil(mx-tw*0.5),math.ceil(my-th*0.5),math.ceil(mx+tw*0.5),math.ceil(my+th*0.5),false,true)
+        mx = mx+stepWidth
+      end
+    end
 
   if (self.state.hovered) then
     gl.Color(self.focusColor)
   else
     gl.Color(1,1,1,1)
   end
-  
-  if not self.noDrawThumb then
-    TextureHandler.LoadTexture(0,self.ThumbImage,self)
-      local texInfo = gl.TextureInfo(self.ThumbImage) or {xsize=1, ysize=1}
-      local tw,th = texInfo.xsize, texInfo.ysize
-      
-      --// scale the thumb down if we don't have enough space
-      tw = math.ceil(tw * (h / th))
-      th = h
-      
-      local barWidth = w - (pdLeft + pdRight)
-      local mx = pdLeft + barWidth * percent
-      local my = h * 0.5
-      mx = math.floor(mx - tw * 0.5)
-      my = math.floor(my - th * 0.5)
-      gl.TexRect(mx, my, mx + tw, my + th, false, true)
-   end
-   
+
+  TextureHandler.LoadTexture(0,self.ThumbImage,self)
+    local texInfo = gl.TextureInfo(self.ThumbImage) or {xsize=1, ysize=1}
+    local tw,th = texInfo.xsize, texInfo.ysize
+
+    --// scale the thumb down if we don't have enough space
+    tw = math.ceil(tw * (h / th))
+    th = h
+
+    local barWidth = w - (pdLeft + pdRight)
+    local mx = pdLeft + barWidth * percent
+    local my = h * 0.5
+    mx = math.floor(mx - tw * 0.5)
+    my = math.floor(my - th * 0.5)
+    gl.TexRect(mx, my, mx + tw, my + th, false, true)
+
   gl.Texture(0,false)
 end
 
@@ -1047,6 +1123,10 @@ function NCHitTestWithPadding(obj,mx,my)
   elseif (draggable) then
     return obj
   end
+  
+  if obj.noClickThrough and not IsTweakMode() then
+    return obj
+  end
 end
 
 function WindowNCMouseDown(obj,x,y)
@@ -1086,6 +1166,10 @@ function WindowNCMouseDownPostChildren(obj,x,y)
 
   if (draggable and not dragUseGrip) then
     obj:StartDragging()
+    return obj
+  end
+
+  if obj.noClickThrough and not IsTweakMode() then
     return obj
   end
 end

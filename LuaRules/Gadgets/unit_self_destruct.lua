@@ -66,7 +66,7 @@ function gadget:GameFrame(n)
       end
     end
     if #selfDunits / realUnits > 0.8 then
-      Spring.GiveOrderToUnitArray(selfDunits, CMD.SELFD, {}, {})
+      Spring.GiveOrderToUnitArray(selfDunits, CMD.SELFD, {}, 0)
       SendToUnsynced('resignteam', team)
     end
   end
@@ -86,7 +86,7 @@ function gadget:GameFrame(n)
         local playerlist = Spring.GetPlayerList(t, true) -- active players
         if playerlist then
           for j=1,#playerlist do
-            local _,_,spec = Spring.GetPlayerInfo(playerlist[j])
+            local _,_,spec = Spring.GetPlayerInfo(playerlist[j], false)
             if not spec then
               activeTeams = activeTeams + 1
             end

@@ -1,23 +1,27 @@
-local isNewEngine = not ((Game.version:find('91.0') == 1) and (Game.version:find('91.0.1') == nil))
+if GG.StartStopMovingControl then
+	return
+end
 
-local spGetGroundHeight = Spring.GetGroundHeight
-local spGetUnitVelocity = Spring.GetUnitVelocity
-local spGetUnitPosition = Spring.GetUnitPosition
-
-function StartStopMovingControl(startFunc, stopFunc, thresholdSpeed, fallingCountsAsMoving)
+function GG.StartStopMovingControl(unitID, startFunc, stopFunc, thresholdSpeed, fallingCountsAsMoving)
+	local spGetGroundHeight = Spring.GetGroundHeight
+	local spGetUnitVelocity = Spring.GetUnitVelocity
+	local spGetUnitPosition = Spring.GetUnitPosition
 	thresholdSpeed = thresholdSpeed or 0.05
+	
+	while Spring.GetUnitIsStunned(unitID) do
+		Sleep(1000)
+	end
+	
 	local x,y,z, height, speed
 	local moving = false
 	while true do
 		x,y,z = spGetUnitPosition(unitID)
+		if not x then
+			return
+		end
 		height = spGetGroundHeight(x,z)
 		if y - height < 1 then
-			if isNewEngine then
-				speed = select(4,spGetUnitVelocity(unitID))
-			else
-				x,y,z = spGetUnitVelocity(unitID)
-				speed = math.sqrt(x*x+y*y+z*z)
-			end
+			speed = select(4, spGetUnitVelocity(unitID))
 			if moving then
 				if speed <= thresholdSpeed then
 					moving = false
@@ -35,6 +39,6 @@ function StartStopMovingControl(startFunc, stopFunc, thresholdSpeed, fallingCoun
 				startFunc()
 			end
 		end
-		Sleep(60)
+		Sleep(350)
 	end
 end

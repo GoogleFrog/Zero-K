@@ -2,20 +2,20 @@ local menu_armcom = {
   items = {
   {
     angle = 0,
-    unit = "cormex",
+    unit = "staticmex",
     label = "Economy",
     items = {
       {
         angle = 45,
-        unit = "cafus"
+        unit = "energysingu"
       },
       {
         angle= 90,
-        unit = "armfus",
+        unit = "energyfusion",
       },
       {
         angle= 135,
-        unit = "geo",
+        unit = "energygeo",
       },
       --{
       --  angle = -45,
@@ -23,15 +23,15 @@ local menu_armcom = {
       --},
       {
         angle = -45,
-        unit = "armnanotc",
+        unit = "staticcon",
       },
       {
         angle= -90,
-        unit = "armsolar",
+        unit = "energysolar",
       },
       {
         angle= -135,
-        unit = "armwin",
+        unit = "energywind",
       },
     }
   },
@@ -45,10 +45,6 @@ local menu_armcom = {
         unit = "factorygunship"
       },
       {
-        angle = -90,
-        unit = "armcsa"
-      },
-	  {
         angle = -135,
         unit = "factoryamph"
       },
@@ -58,7 +54,7 @@ local menu_armcom = {
       },
       {
         angle = 0,
-        unit = "armasp"
+        unit = "staticrearm"
       },
     }
   },
@@ -95,63 +91,59 @@ local menu_armcom = {
   },
   {
     angle = 180,
-    unit = "corllt",
+    unit = "turretlaser",
     label = "Defense",
     items = {
       {
         angle = 45,
-        unit = "corrl"
+        unit = "turretmissile"
       },
---      {
---        angle = 90,
---        unit = "corpre"
---      },
       {
         angle = 90,
-        unit = "corhlt"
+        unit = "turretheavylaser"
       },
       {
         angle = 135,
-        unit = "corgrav"
+        unit = "turretimpulse"
       },
       {
         angle = -90,
-        unit = "armdeva"
+        unit = "turretriot"
       },
       {
         angle = -135,
-        unit = "armartic"
+        unit = "turretemp"
       },
       {
         angle = -45,
-        unit = "armpb"
+        unit = "turretgauss"
       }
     }
   },
   {
     angle = 135,
-    unit = "corrl",
+    unit = "turretmissile",
     label = "AA/AS",
     items = {
       {
         angle = 0,
-        unit = "screamer"
+        unit = "turretaaheavy"
       },
       {
         angle = -90,
-        unit = "corrazor"
+        unit = "turretaalaser"
       },
       {
         angle = 45,
-        unit = "corflak"
+        unit = "turretaaflak"
       },
       {
         angle = -135,
-        unit = "missiletower"
+        unit = "turretaaclose"
       },
       {
         angle = 90,
-        unit = "armcir"
+        unit = "turretaafar"
       },
       {
         angle = 180,
@@ -161,63 +153,59 @@ local menu_armcom = {
   },
   {
     angle = 90,
-    unit = "corrad",
+    unit = "staticradar",
     label = "Support",
     items = {
       {
         angle = 0,
-        unit = "armarad"
+        unit = "staticheavyradar"
       },
       {
         angle = -180,
-        unit = "corjamt"
+        unit = "staticshield"
       },
       {
         angle = 135,
-        unit = "armjamt"
-      },
-      {
-        angle = 45,
-        unit = "armsonar"
+        unit = "staticjammer"
       },
 	  {
         angle = -45,
-        unit = "armestor"
+        unit = "energypylon"
       },
       {
         angle = -135,
-        unit = "armmstor"
+        unit = "staticstorage"
       },
 	}
   },
   {
     angle = -135,
-    unit = "armamd",
+    unit = "staticantinuke",
     label = "Super",
     items = {
       {
         angle = 0,
-        unit = "corsilo"
+        unit = "staticnuke"
       },
       {
         angle = 90,
-        unit = "missilesilo"
+        unit = "staticmissilesilo"
       },
 	  {
         angle = 135,
-        unit = "armanni"
+        unit = "turretantiheavy"
       },
       {
         angle = 180,
-        unit = "cordoom"
+        unit = "turretheavy"
       },
       {
         angle = -45,
-        unit = "corbhmth"
+        unit = "staticarty"
       },
       {
         angle = -90,
-        unit = "armbrtha"
+        unit = "staticheavyarty"
       }
     }
   },
@@ -233,10 +221,6 @@ local menu_armcom = {
 	   {
         angle = 180,
         unit = "raveparty"
-       },
-	   {
-        angle = 135,
-        unit = "iwin"
        },
 	   {
         angle = 0,

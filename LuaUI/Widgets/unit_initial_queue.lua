@@ -21,6 +21,9 @@ end
 ------------------------------------------------------------
 local buildOptions = VFS.Include("gamedata/buildoptions.lua")
 
+local MAX_QUEUE = 30
+local REDCHAR = string.char(255,255,64,32)
+
 -- Colors
 local buildDistanceColor = {0.3, 1.0, 0.3, 0.7}
 local buildLinesColor = {0.3, 1.0, 0.3, 0.7}
@@ -35,7 +38,7 @@ local energyColor = '\255\255\255\128' -- Light yellow
 local buildColor = '\255\128\255\128' -- Light green
 local whiteColor = '\255\255\255\255' -- White
 
-local fontSize = 14
+local fontSize = 20
 
 ------------------------------------------------------------
 -- Globals
@@ -43,7 +46,7 @@ local fontSize = 14
 local myTeamID = Spring.GetMyTeamID()
 local myPlayerID = Spring.GetMyPlayerID()
 
-local sDefID = Spring.GetTeamRulesParam(myTeamID, "commChoice") or UnitDefNames.commbasic.id-- Starting unit def ID
+local sDefID = Spring.GetTeamRulesParam(myTeamID, "commChoice") or UnitDefNames.dyntrainer_strike_base.id-- Starting unit def ID
 local sDef = UnitDefs[sDefID]
 local buildDistance = sDef.buildDistance
 
@@ -112,10 +115,11 @@ local function DrawBuilding(buildData, borderColor, buildingAlpha, drawRanges,te
 	gl.Color(1.0, 1.0, 1.0, buildingAlpha)
 
 	gl.PushMatrix()
+		gl.LoadIdentity()
 		gl.Translate(bx, by, bz)
 		gl.Rotate(90 * facing, 0, 1, 0)
 		gl.Texture("%"..bDefID..":0") --.s3o texture atlas for .s3o model
-		gl.UnitShape(bDefID, teamID)
+		gl.UnitShape(bDefID, teamID, false, false, false)
 		gl.Texture(false)
 	gl.PopMatrix()
 
@@ -123,7 +127,7 @@ local function DrawBuilding(buildData, borderColor, buildingAlpha, drawRanges,te
 	gl.DepthTest(false)
 	gl.DepthMask(false)
 end
-local function DrawUnitDef(uDefID, uTeam, ux, uy, uz)
+local function DrawUnitDef(uDefID, uTeam, ux, uy, uz, rot)
 
 	gl.Color(1.0, 1.0, 1.0, 1.0)
 	gl.DepthTest(GL.LEQUAL)
@@ -131,8 +135,10 @@ local function DrawUnitDef(uDefID, uTeam, ux, uy, uz)
 	gl.Lighting(true)
 
 	gl.PushMatrix()
+		gl.LoadIdentity()
 		gl.Translate(ux, uy, uz)
-		gl.UnitShape(uDefID, uTeam)
+		gl.Rotate(rot, 0, 1, 0)
+		gl.UnitShape(uDefID, uTeam, false, false, true)
 	gl.PopMatrix()
 
 	gl.Lighting(false)
@@ -211,10 +217,36 @@ end
 ------------------------------------------------------------
 -- Initialize/shutdown
 ------------------------------------------------------------
+
+local function GetUnlockedBuildOptions(fullOptions)
+	local teamID = Spring.GetMyTeamID()
+	local unlockedCount = Spring.GetTeamRulesParam(teamID, "unlockedUnitCount")
+	if not unlockedCount then
+		return fullOptions
+	end
+	local unlockedMap = {}
+	for i = 1, unlockedCount do
+		local unitDefID = Spring.GetTeamRulesParam(teamID, "unlockedUnit" .. i)
+		if unitDefID then
+			unlockedMap[unitDefID] = true
+		end
+	end
+	local newOptions = {}
+	for i = 1, #fullOptions do
+		if unlockedMap[fullOptions[i]] then
+			newOptions[#newOptions + 1] = fullOptions[i]
+		end
+	end
+	return newOptions
+end
+
 function widget:Initialize()
-	if (Game.startPosType == 1) or			-- Don't run if start positions are random
-	   (Spring.GetGameFrame() > 0) then		-- Don't run if game has already started
+	if (Spring.GetGameFrame() > 0) then		-- Don't run if game has already started
 		Spring.Echo("Game already started or Start Position is randomized. Removed: Initial Queue ZK") --added this message because widget removed message might not appear (make debugging harder)
+		widgetHandler:RemoveWidget(self)
+		return
+	end
+	if Spring.GetModOptions().singleplayercampaignbattleid then -- Don't run in campaign battles.
 		widgetHandler:RemoveWidget(self)
 		return
 	end
@@ -227,10 +259,12 @@ function widget:Initialize()
 			weaponRange[uDefID] = uDef.maxWeaponRange
 		end
 	end
-	if UnitDefNames["cormex"] then
-		isMex[UnitDefNames["cormex"].id] = true;
+	if UnitDefNames["staticmex"] then
+		isMex[UnitDefNames["staticmex"].id] = true;
 	end
 	WG.InitialQueue = true
+	
+	buildOptions = GetUnlockedBuildOptions(buildOptions)
 end
 
 function widget:Shutdown()
@@ -271,16 +305,20 @@ function widget:Update(dt)
 	end
 end
 
---[[
 function widget:DrawScreen()
 	gl.PushMatrix()
-	gl.Translate(scrW/2, scrH*0.4, 0)
-	if #buildQueue > 0 then	
-		gl.Text(string.format(queueTimeFormat, mCost, buildTime), 0, 0, fontSize, 'cdo')
+	gl.Translate(scrW*0.4, scrH*0.35, 0)
+	local num = #buildQueue
+	if num > 0 then	
+		--gl.Text(string.format(queueTimeFormat, mCost, buildTime), 0, 0, fontSize, 'cdo')
+		local str = "Queue: " .. num .. "/" .. MAX_QUEUE
+		if num >= MAX_QUEUE then
+			str = REDCHAR .. str
+		end
+		gl.Text(str, 0, 0, fontSize, 'cdo')
 	end
 	gl.PopMatrix()
 end
-]]--
 
 local function DrawWorldFunc()
 	--don't draw anything once the game has started; after that engine can draw queues itself
@@ -313,7 +351,10 @@ local function DrawWorldFunc()
 		sy = Spring.GetGroundHeight(sx, sz)
 
 		-- Draw the starting unit at start position
-		DrawUnitDef(sDefID, myTeamID, sx, sy, sz)
+		local rot = (math.abs(Game.mapSizeX/2 - sx) > math.abs(Game.mapSizeZ/2 - sz))
+			and ((sx>Game.mapSizeX/2) and 270 or 90)
+			or ((sz>Game.mapSizeZ/2) and 180 or 0)
+		DrawUnitDef(sDefID, myTeamID, sx, sy, sz, rot)
 
 		-- Draw start units build radius
 		gl.Color(buildDistanceColor)
@@ -409,7 +450,7 @@ function widget:RecvLuaMsg(msg, playerID)
 		local msgArray = explode('|',msg)
 		local typeArg, unitDefID = tonumber(msgArray[1]), tonumber(msgArray[2])
 		if typeArg == 5 then -- Cancel queue
-			local teamID = select(4,Spring.GetPlayerInfo(playerID))
+			local teamID = select(4,Spring.GetPlayerInfo(playerID, false))
 			othersBuildQueue[teamID] = {}
 			return
 		end
@@ -420,7 +461,7 @@ function widget:RecvLuaMsg(msg, playerID)
 		if not (x and y and z and face) then
 			return --invalid coordinate and facing
 		end
-		local teamID = select(4,Spring.GetPlayerInfo(playerID))
+		local teamID = select(4,Spring.GetPlayerInfo(playerID, false))
 		othersBuildQueue[teamID] = othersBuildQueue[teamID] or {}
 		local playerXBuildQueue = othersBuildQueue[teamID]
 		if typeArg == 1 then
@@ -483,9 +524,12 @@ function widget:GameFrame(n)
 	end
 	if tasker then
 		--Spring.Echo("sending queue to unit")
+		-- notify other widgets that we're giving orders to the commander.
+		if WG.GlobalBuildCommand then WG.GlobalBuildCommand.CommandNotifyPreQue(tasker) end
+		
 		for b = 1, #buildQueue do
 			local buildData = buildQueue[b]
-			Spring.GiveOrderToUnit(tasker, -buildData[1], {buildData[2], buildData[3], buildData[4], buildData[5]}, {"shift"})
+			Spring.GiveOrderToUnit(tasker, -buildData[1], {buildData[2], buildData[3], buildData[4], buildData[5]}, CMD.OPT_SHIFT)
 		end
 		if selDefID and UnitDefs[selDefID] and UnitDefs[selDefID].name then
 			WG.InitialActiveCommand = "buildunit_" .. UnitDefs[selDefID].name
@@ -573,21 +617,24 @@ function widget:CommandsChanged()
 	end
 	for i=1, #buildOptions do
 		local unitName = buildOptions[i]
-		table.insert(widgetHandler.customCommands, {
-			id      = -1*UnitDefNames[unitName].id,
-			type    = 20,
-			tooltip = "Build: " .. UnitDefNames[unitName].humanName .. " - " .. UnitDefNames[unitName].tooltip,
-			cursor  = unitName,
-			action  = "buildunit_" .. unitName,
-			params  = {}, 
-			texture = "", --"#"..id,
-			name = unitName,
-		})
+		if not Spring.GetGameRulesParam("disabled_unit_" .. unitName) then
+			table.insert(widgetHandler.customCommands, {
+				id      = -1*UnitDefNames[unitName].id,
+				type    = 20,
+				tooltip = "Build: " .. UnitDefNames[unitName].humanName .. " - " .. UnitDefNames[unitName].tooltip,
+				cursor  = unitName,
+				action  = "buildunit_" .. unitName,
+				params  = {}, 
+				texture = "", --"#"..id,
+				name = unitName,
+			})
+		end
 	end
 	table.insert(widgetHandler.customCommands, {
 		id      = CMD_STOP,
 		type    = CMDTYPE.ICON,
 		tooltip = "Stop",
+		action  = "stop",
 		params  = {}, 
 	})
 end
@@ -634,32 +681,46 @@ function widget:CommandNotify(cmdID, cmdParams, cmdOptions)
 	SetSelDefID(-1*cmdID)
 	local bx,by,bz = cmdParams[1],cmdParams[2],cmdParams[3]
 	local buildFacing = Spring.GetBuildFacing()
+	local msg, msg2
+	
+	local function CheckClash(buildData)
+		for i = #buildQueue, 1, -1 do
+			if DoBuildingsClash(buildData, buildQueue[i]) then
+				table.remove(buildQueue, i)
+				msg = "IQ|2|"..i
+				return true
+			end
+		end
+	end
+	
 	if Spring.TestBuildOrder(selDefID, bx, by, bz, buildFacing) ~= 0 then
 		if isMex[selDefID] and WG.metalSpots then
 			local bestSpot = GetClosestMetalSpot(bx, bz)
-			bx, by, bz = bestSpot.x, bestSpot.y, bestSpot.z
+			bx, bz = bestSpot.x, bestSpot.z
+			by = math.max(0, Spring.GetGroundHeight(bx, bz))
 		end
 		local buildData = {selDefID, bx, by, bz, buildFacing}
-		local msg
-		if cmdOptions.meta then
-			table.insert(buildQueue, 1, buildData)
-			msg = "IQ|1|"..selDefID.."|"..math.modf(bx).."|"..math.modf(by).."|"..math.modf(bz).."|"..buildFacing
-		elseif cmdOptions.shift then
-
-			local anyClashes = false
-			for i = #buildQueue, 1, -1 do
-				if DoBuildingsClash(buildData, buildQueue[i]) then
-					anyClashes = true
-					table.remove(buildQueue, i)
-					msg = "IQ|2|"..i
+		
+		if cmdOptions.meta then	-- space insert at front
+			local anyClashes = CheckClash(buildData)
+			if not anyClashes then
+				table.insert(buildQueue, 1, buildData)
+				msg = "IQ|1|"..selDefID.."|"..math.modf(bx).."|"..math.modf(by).."|"..math.modf(bz).."|"..buildFacing
+				if (buildQueue[MAX_QUEUE + 1] ~= nil) then	-- exceeded max queue, remove the one at the end
+					table.remove(buildQueue, MAX_QUEUE + 1)
+					msg2 = msg
+					msg = "IQ|2|".. (MAX_QUEUE + 1)
 				end
 			end
-
+		elseif cmdOptions.shift then	-- shift-queue
+			local anyClashes = CheckClash(buildData)
 			if not anyClashes then
-				buildQueue[#buildQueue + 1] = buildData
-				msg = "IQ|3|"..selDefID.."|"..math.modf(bx).."|"..math.modf(by).."|"..math.modf(bz).."|"..buildFacing
+				if #buildQueue < MAX_QUEUE then	-- disallow if already reached max queue
+					buildQueue[#buildQueue + 1] = buildData
+					msg = "IQ|3|"..selDefID.."|"..math.modf(bx).."|"..math.modf(by).."|"..math.modf(bz).."|"..buildFacing
+				end
 			end
-		else
+		else	-- normal build
 			buildQueue = {buildData}
 			msg = "IQ|4|"..selDefID.."|"..math.modf(bx).."|"..math.modf(by).."|"..math.modf(bz).."|"..buildFacing
 			--msg = "IQ|4|404|648|2|3304|1" --example spoof. This will not work
@@ -667,6 +728,10 @@ function widget:CommandNotify(cmdID, cmdParams, cmdOptions)
 		if msg then
 			Spring.SendLuaUIMsg(msg,'a')
 			Spring.SendLuaUIMsg(msg,'s') --need 2 msg because since Spring 97 LuaUIMsg without parameter is send info to EVERYONE (including enemy)
+		end
+		if msg2 then
+			Spring.SendLuaUIMsg(msg2,'a')
+			Spring.SendLuaUIMsg(msg2,'s')
 		end
 		
 		mCost, eCost, bCost = GetQueueCosts()

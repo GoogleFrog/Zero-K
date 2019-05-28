@@ -6,7 +6,7 @@ function gadget:GetInfo()
     date      = "10 June 2014",
     license   = "GNU GPL, v2 or later",
     layer     = 0,
-    enabled   = not (Game.version:find('91.0') == 1),
+    enabled   = false,
   }
 end
 
@@ -27,7 +27,11 @@ local projectileAllyTeam = {}
 
 function gadget:Initialize()
 	weaponLoseTrackingFrames[WeaponDefNames["bomberdive_bombsabot"].id] = 14
-	Script.SetWatchWeapon(WeaponDefNames["bomberdive_bombsabot"].id, true)
+	if Script.SetWatchProjectile then
+		Script.SetWatchProjectile(WeaponDefNames["bomberdive_bombsabot"].id, true)
+	else
+		Script.SetWatchWeapon(WeaponDefNames["bomberdive_bombsabot"].id, true)
+	end
 end
 
 function gadget:GameFrame(n)
@@ -36,8 +40,8 @@ function gadget:GameFrame(n)
 			local targetType, targetID = Spring.GetProjectileTarget(proID)
 			if targetType == UNIT then
 				local allyTeam = projectileAllyTeam[proID]
-				los = Spring.GetUnitLosState(targetID,allyTeam,false)
-				if los and los.los then
+				local los = Spring.GetUnitLosState(targetID,allyTeam,true)
+				if los and (los % 2 == 1) then
 					-- If the unit is visible then target the ground beneath it.
 					local x,_,z = Spring.GetUnitPosition(targetID)
 					local y = Spring.GetGroundHeight(x,z)
@@ -72,8 +76,7 @@ function gadget:GameFrame(n)
 			})
 			
 			-- Destroy old projectile
-			Spring.SetProjectilePosition(proID,-100000,-100000,-100000)
-			Spring.SetProjectileCollision(proID)
+			Spring.DeleteProjectile(proID)
 			--]]
 		end
 		
@@ -82,7 +85,6 @@ end
 
 function gadget:ProjectileCreated(proID, proOwnerID, weaponID)
 	if weaponLoseTrackingFrames[weaponID] then
-		local x, y, z = Spring.GetProjectilePosition(proID)
 		projectiles[proID] = Spring.GetGameFrame() + weaponLoseTrackingFrames[weaponID]
 		if proOwnerID then
 			projectileAllyTeam[proID] = Spring.GetUnitAllyTeam(proOwnerID)

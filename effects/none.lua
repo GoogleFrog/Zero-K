@@ -1,7 +1,7 @@
 -- default
 -- none
 
-return {
+local effects = {
   ["default"] = {
     usedefaultexplosions = true,
   },
@@ -11,3 +11,4 @@ return {
 
 }
 
+return effects

@@ -23,8 +23,6 @@ function widget:GetInfo()
   }
 end
 
-local reverseCompatibility = (Game.version:find('91.0') == 1) or (Game.version:find('94') and not Game.version:find('94.1.1'))
-
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
 
@@ -81,6 +79,8 @@ local orderQueue = {}
 if (Game.modShortName == "BA") then local BA = true end 
 
 local myTeamID
+
+local EMPTY_TABLE = {}
 
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
@@ -181,16 +181,14 @@ function widget:CommandNotify(id, params, options)
     targetUnit = params[1]
     teamUnits[targetUnit] = nil
     for unitID,unitDefs in pairs(nanoTurrets) do
-      local cQueue = GetCommandQueue(unitID, 1)
-      if (#cQueue > 0) then
-        if (cQueue[1].id == CMD.REPAIR) and (cQueue[1].params[1] == targetUnit) then
+      local cmdID, _, _, cmdParam = Spring.GetUnitCurrentCommand(unitID)
+        if (cmdID == CMD.REPAIR) and (cmdParam == targetUnit) then
           if options.shift then
-            GiveOrderToUnit(unitID,CMD.STOP,{},{})
+            GiveOrderToUnit(unitID,CMD.STOP, EMPTY_TABLE, 0)
           else
-            GiveOrderToUnit(unitID,CMD.RECLAIM,{targetUnit},{})
+            GiveOrderToUnit(unitID,CMD.RECLAIM,{targetUnit}, 0)
           end
         end
-      end
     end
   end
   
@@ -201,12 +199,10 @@ function widget:CommandNotify(id, params, options)
       widget:UnitFinished(targetUnit, GetUnitDefID(targetUnit), myTeamID)
     end
     for unitID,unitDefs in pairs(nanoTurrets) do
-      local cQueue = GetCommandQueue(unitID, 1)
-      if (#cQueue > 0) then
-        if (cQueue[1].id == CMD.RECLAIM) and (cQueue[1].params[1] == targetUnit) then
-          GiveOrderToUnit(unitID,CMD.REPAIR,{targetUnit},{})
+      local cmdID, _, _, cmdParam = Spring.GetUnitCurrentCommand(unitID)
+        if (cmdID == CMD.RECLAIM) and (cmdParam == targetUnit) then
+          GiveOrderToUnit(unitID,CMD.REPAIR,{targetUnit}, 0)
         end
-      end
     end
   end
 end
@@ -237,7 +233,7 @@ local function processOrderQueue()
     if (type == 1) then
       Spring.GiveOrderToUnitMap(unitMap, CMD.INSERT, {0, id, CMD.OPT_SHIFT, params}, CMD.OPT_ALT)
     else
-      Spring.GiveOrderToUnitMap(unitMap, id, {params}, {"shift"})
+      Spring.GiveOrderToUnitMap(unitMap, id, {params}, CMD.OPT_SHIFT)
     end
   end
   orderQueue = {}
@@ -324,14 +320,8 @@ function widget:Update(deltaTime)
           nanoTurrets[unitID].damaged = false
         end
         
-        local cQueue = GetCommandQueue(unitID, 1)
-		local cQueueCount
-		if reverseCompatibility then
-			local tempQueue = GetCommandQueue(unitID, 5)
-			cQueueCount = #tempQueue
-		else
-			cQueueCount = GetCommandQueue(unitID, 0)
-		end
+        local cmdID, _, _, cmdParam = Spring.GetUnitCurrentCommand(unitID)
+		local cQueueCount = GetCommandQueue(unitID, 0)
      
         local commandMe = false
       
@@ -343,15 +333,15 @@ function widget:Update(deltaTime)
 			nanoTurrets[unitID].auto = false
 		else
 	      
-	        if (cQueue[1].id == CMD.PATROL) and (cQueueCount <= 4) then
+	        if (cmdID == CMD.PATROL) and (cQueueCount <= 4) then
 	          commandMe = true
 	          nanoTurrets[unitID].auto = false
 	        end
 	        
 	        if nanoTurrets[unitID].auto then
-	          if (cQueue[1].id == CMD.RECLAIM) then
+	          if (cmdID == CMD.RECLAIM) then
 	            prevCommand = CMD.RECLAIM
-	            prevUnit = cQueue[1].params[1]
+	            prevUnit = cmdParam
 	            if prevUnit < Game.maxUnits then
                 local targetDefID = GetUnitDefID(prevUnit)
                 if (targetDefID ~= nil) and UnitDefs[targetDefID].canMove then
@@ -362,9 +352,9 @@ function widget:Update(deltaTime)
                 end
 	            end
 	          end
-	          if (cQueue[1].id == CMD.REPAIR) then
+	          if (cmdID == CMD.REPAIR) then
 	            prevCommand = CMD.REPAIR
-	            prevUnit = cQueue[1].params[1]
+	            prevUnit = cmdParam
               local targetDefID = GetUnitDefID(prevUnit)
               if (targetDefID ~= nil) and UnitDefs[targetDefID].canMove then
                 local uX, _, uZ = GetUnitPosition(prevUnit)
@@ -495,8 +485,8 @@ function widget:Update(deltaTime)
           end
           
           if (nanoTurrets[unitID].auto) and (not ordered) and (cQueueCount > 0) and 
-             ((cQueue[1].id == CMD.REPAIR) or (cQueue[1].id == CMD.RECLAIM)) then
-            orderQueue[unitID] = {0, cQueue[1].id, cQueue[1].params[1]}
+             ((cmdID == CMD.REPAIR) or (cmdID == CMD.RECLAIM)) then
+            orderQueue[unitID] = {0, cmdID, cmdParam}
           elseif ordered then
             nanoTurrets[unitID].auto = true
           end

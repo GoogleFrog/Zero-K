@@ -5,7 +5,12 @@ local spGetUnitRulesParam = Spring.GetUnitRulesParam
 local base, shield, front, bottom, back = piece('base', 'shield', 'front', 'bottom', 'back')
 local rim1, door1, rim2, door2 = piece('rim1', 'door1', 'rim2', 'door2')
 local turretbase, turret, gun, pads, flare1, flare2 = piece('turretbase', 'turret', 'gun', 'pads', 'flare1', 'flare2')
-local wake1, wake2, wake3, wake4, wake5, wake6, wake7, wake8 = piece('wake1', 'wake2', 'wake3', 'wake4', 'wake5', 'wake6', 'wake7', 'wake8')
+local ground1 = piece 'ground1'
+
+local wakes = {}
+for i = 1, 8 do
+	wakes[i] = piece ('wake' .. i)
+end
 
 local SIG_HIT = 2
 
@@ -29,29 +34,25 @@ function HitByWeaponThread(x, z)
 	Turn(base, x_axis, 0, math.rad(30))
 end
 
+local sfxNum = 0
+function script.setSFXoccupy(num)
+	sfxNum = num
+end
+
 local function MoveScript()
-	while true do 
-		if math.random() < 0.5 then
-			EmitSfx(wake1, 5)
-			EmitSfx(wake3, 5)
-			EmitSfx(wake5, 5)
-			EmitSfx(wake7, 5)
-			EmitSfx(wake1, 3)
-			EmitSfx(wake3, 3)
-			EmitSfx(wake5, 3)
-			EmitSfx(wake7, 3)
-		else
-			EmitSfx(wake2, 5)
-			EmitSfx(wake4, 5)
-			EmitSfx(wake6, 5)
-			EmitSfx(wake8, 5)
-			EmitSfx(wake2, 3)
-			EmitSfx(wake4, 3)
-			EmitSfx(wake6, 3)
-			EmitSfx(wake8, 3)
+	while Spring.GetUnitIsStunned(unitID) do
+		Sleep(2000)
+	end
+	while true do
+		if not Spring.GetUnitIsCloaked(unitID) then
+			if (sfxNum == 1 or sfxNum == 2) and select(2, Spring.GetUnitPosition(unitID)) == 0 then
+				for i = 1, 8 do
+					EmitSfx(wakes[i], 3)
+				end
+			else
+				EmitSfx(ground1, 1024)
+			end
 		end
-	
-		EmitSfx(base, 1024+0)
 		Sleep(150)
 	end
 end
@@ -86,7 +87,7 @@ function script.Create()
 	Turn(rim1, y_axis, math.rad(-35))
 	Turn(rim2, y_axis, math.rad(35))
 	
-	StartThread(SmokeUnit, {base})
+	StartThread(GG.Script.SmokeUnit, {base})
 	StartThread(WobbleUnit)
 	StartThread(MoveScript)
 end
@@ -123,7 +124,7 @@ local depthchargeWeaponDef = WeaponDefNames["hoverdepthcharge_depthcharge"]
 local RELOAD = math.ceil(depthchargeWeaponDef.reload * Game.gameSpeed)
 
 function ShootDepthcharge()
-	EmitSfx(pads, FIRE_W3)
+	EmitSfx(pads, GG.Script.FIRE_W3)
 	StartThread(ShotThread)
 end
 
@@ -138,7 +139,7 @@ local function FakeWeaponShoot()
 			local reloadFrame = gameFrame + RELOAD / reloadMult
 			spSetUnitWeaponState(unitID, 1, {reloadFrame = reloadFrame})
 			
-			EmitSfx(pads, FIRE_W3)
+			EmitSfx(pads, GG.Script.FIRE_W3)
 			StartThread(ShotThread)
 			Move(gun, y_axis, -2)
 			Move(gun, y_axis, 2, 2)
@@ -148,9 +149,11 @@ local function FakeWeaponShoot()
 	end
 end
 
-function script.BlockShot(num)
+function script.BlockShot(num, targetID)
 	if num == 1 then
-		return false
+		-- Underestimate damage and flight time. The aim here really is just to avoid every Claymore unloading on a single
+		-- target at the same time. They are a bit too random for anything more precise.
+		return GG.OverkillPrevention_CheckBlock(unitID, targetID, 600, 60)
 	end
 	FakeWeaponShoot()
 	return true
@@ -159,36 +162,24 @@ end
 function script.Killed(recentDamage, maxHealth)
 	local severity = recentDamage / maxHealth
 	if severity <= 0.25 then
-		Explode(base, sfxNone)
-		Explode(door1, sfxNone)
-		Explode(door2, sfxNone)
-		Explode(back, sfxNone)
+		Explode(base, SFX.NONE)
+		Explode(door1, SFX.NONE)
+		Explode(door2, SFX.NONE)
+		Explode(back, SFX.NONE)
 		return 1
 	elseif severity <= 0.50 then
-		Explode(base, sfxNone)
-		Explode(door1, sfxNone)
-		Explode(door2, sfxNone)
-		Explode(back, sfxNone)
-		Explode(rim1, sfxShatter)
-		Explode(rim2, sfxShatter)
-		Explode(wake1, sfxFall)
-		Explode(wake2, sfxFall)
-		Explode(wake3, sfxFall)
-		Explode(wake4, sfxFall)
-		Explode(wake5, sfxFall)
-		Explode(wake6, sfxFall)
+		Explode(base, SFX.NONE)
+		Explode(door1, SFX.NONE)
+		Explode(door2, SFX.NONE)
+		Explode(back, SFX.NONE)
+		Explode(rim1, SFX.SHATTER)
+		Explode(rim2, SFX.SHATTER)
 		return 1
 	end
-	Explode(door1, sfxSmoke + sfxFall + sfxFire + sfxExplodeOnHit)
-	Explode(door2, sfxSmoke + sfxFall + sfxFire + sfxExplodeOnHit)
-	Explode(back, sfxSmoke + sfxFall + sfxFire + sfxExplodeOnHit)
-	Explode(rim1, sfxShatter)
-	Explode(rim2, sfxShatter)
-	Explode(wake1, sfxSmoke + sfxFall + sfxFire + sfxExplodeOnHit)
-	Explode(wake2, sfxSmoke + sfxFall + sfxFire + sfxExplodeOnHit)
-	Explode(wake3, sfxSmoke + sfxFall + sfxFire + sfxExplodeOnHit)
-	Explode(wake4, sfxSmoke + sfxFall + sfxFire + sfxExplodeOnHit)
-	Explode(wake5, sfxSmoke + sfxFall + sfxFire + sfxExplodeOnHit)
-	Explode(wake6, sfxSmoke + sfxFall + sfxFire + sfxExplodeOnHit)
+	Explode(door1, SFX.SMOKE + SFX.FALL + SFX.FIRE + SFX.EXPLODE_ON_HIT)
+	Explode(door2, SFX.SMOKE + SFX.FALL + SFX.FIRE + SFX.EXPLODE_ON_HIT)
+	Explode(back, SFX.SMOKE + SFX.FALL + SFX.FIRE + SFX.EXPLODE_ON_HIT)
+	Explode(rim1, SFX.SHATTER)
+	Explode(rim2, SFX.SHATTER)
 	return 2
 end

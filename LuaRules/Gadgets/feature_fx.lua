@@ -14,7 +14,7 @@ function gadget:GetInfo()
     date      = "January 2015",
     license   = "GNU GPL, v2 or later",
     layer     = 0,
-    enabled   = false  --  loaded by default?
+    enabled   = true  --  loaded by default?
   }
 end
 
@@ -28,13 +28,13 @@ local CEG_SPAWN = [[feature_poof_spawner]];
 function gadget:FeatureDestroyed(id, allyTeam)
 	local _,_,_,x,y,z = spGetFeaturePosition(id, true);
 	local r = spGetFeatureRadius(id);
-	
-	spSpawnCEG( CEG_SPAWN,
-		x,y,z,
-		0,0,0,
-		1+r, 1+r
-	);
-
+	if r then
+		spSpawnCEG( CEG_SPAWN,
+			x,y,z,
+			0,0,0,
+			2+(r/3), 2+(r/3)
+		)
+	end
 	--This could be used to later play sounds without betraying events or positions of destroyed features
 	--SendToUnsynced("feature_destroyed", x, y, z);
 end

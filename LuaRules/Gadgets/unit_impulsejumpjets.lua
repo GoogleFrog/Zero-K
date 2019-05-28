@@ -18,8 +18,6 @@ if (not gadgetHandler:IsSyncedCode()) then
 	return false -- no unsynced code
 end
 
-Spring.SetGameRulesParam("jumpJets",1)
-
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
 --
@@ -66,7 +64,6 @@ local spGetGroundHeight    = Spring.GetGroundHeight
 local spTestBuildOrder     = Spring.TestBuildOrder
 local spGetGameSeconds     = Spring.GetGameSeconds
 local spGetUnitHeading     = Spring.GetUnitHeading
-local spSetUnitNoDraw      = Spring.SetUnitNoDraw
 local spSetUnitNoDraw      = Spring.SetUnitNoDraw
 local spGetGameFrame       = Spring.GetGameFrame
 local spGetUnitDefID       = Spring.GetUnitDefID
@@ -135,7 +132,7 @@ local function ReloadQueue(unitID, queue, cmdTag)
 		return
 	end
 
-	local re = Spring.GetUnitStates(unitID)["repeat"]
+	local re = Spring.Utilities.GetUnitRepeat(unitID)
 	local storeParams
 	--// remove finished command
 	local start = 1
@@ -146,19 +143,15 @@ local function ReloadQueue(unitID, queue, cmdTag)
 		end
 	end
 
-	spGiveOrderToUnit(unitID, CMD_STOP, emptyTable, emptyTable)
+	spGiveOrderToUnit(unitID, CMD_STOP, emptyTable, 0)
 	for i=start,#queue do
 		local cmd = queue[i]
 		local cmdOpt = cmd.options
-		local opts = {"shift"} -- appending
-		if (cmdOpt.alt)	 then opts[#opts+1] = "alt"	 end
-		if (cmdOpt.ctrl)	then opts[#opts+1] = "ctrl"	end
-		if (cmdOpt.right) then opts[#opts+1] = "right" end
-		spGiveOrderToUnit(unitID, cmd.id, cmd.params, opts)
+		spGiveOrderToUnit(unitID, cmd.id, cmd.params, cmdOpt.coded + (cmdOpt.shift and 0 or CMD.OPT_SHIFT))
 	end
 	
 	if re and start == 2 then
-		spGiveOrderToUnit(unitID, CMD_JUMP, {storeParams[1],Spring.GetGroundHeight(storeParams[1],storeParams[3]),storeParams[3]}, {"shift"} )
+		spGiveOrderToUnit(unitID, CMD_JUMP, {storeParams[1],Spring.GetGroundHeight(storeParams[1],storeParams[3]),storeParams[3]}, CMD.OPT_SHIFT )
 	end
 	
 end
@@ -260,10 +253,9 @@ local function Jump(unitID, goal, cmdTag, origCmdParams)
 	local verticalLaunchVel, gravity, xVelocity, zVelocity = FindLaunchSpeedAndAcceleration(duration, vector,apexHeight,lineDist)
 
 	-- check if there is no wall in between
-	local x,z
 	for i=10, duration-10 do
-		x = start[1] + xVelocity*i
-		z = start[3] + zVelocity*i
+		local x = start[1] + xVelocity*i
+		local z = start[3] + zVelocity*i
 		if ( (spGetGroundHeight(x,z) - 30) > (start[2] + verticalLaunchVel*i - gravity*i*i/2)) then
 			return false, false -- FIXME: should try to use SetMoveGoal instead of jumping!
 		end
@@ -423,8 +415,8 @@ local function Jump(unitID, goal, cmdTag, origCmdParams)
 		SetLeaveTracks(unitID, true)
 		
 		if Spring.ValidUnitID(unitID) and (not Spring.GetUnitIsDead(unitID)) then
-			spGiveOrderToUnit(unitID,CMD_WAIT, {}, {})
-			spGiveOrderToUnit(unitID,CMD_WAIT, {}, {})
+			spGiveOrderToUnit(unitID,CMD_WAIT, {}, 0)
+			spGiveOrderToUnit(unitID,CMD_WAIT, {}, 0)
 		end
 
 		spSetUnitRulesParam(unitID,"jumpReloadStart",jumpEndTime)
@@ -509,6 +501,7 @@ function gadget:UnitPreDamaged(unitID, unitDefID, unitTeam, damage, paralyzer, w
 end
 
 function gadget:Initialize()
+	Spring.SetGameRulesParam("jumpJets", 1)
 	Spring.SetCustomCommandDrawData(CMD_JUMP, "Jump", {0, 1, 0, 0.7})
 	Spring.AssignMouseCursor("Jump", "cursorJump", true, true)
 	gadgetHandler:RegisterCMDID(CMD_JUMP)

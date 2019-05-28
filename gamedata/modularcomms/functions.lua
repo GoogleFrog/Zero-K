@@ -19,6 +19,41 @@ mapWeaponToCEG = {
 	[5] = {1,2},
 }
 
+
+function DynamicApplyWeapon(unitDef, weapon, slot)
+	if not weapons[weapon] then
+		Spring.Echo("Cannont find weapon", weapon)
+	end
+	
+	slot = slot or (#unitDef.weapons + 1)
+	
+	weapons[weapon].customparams = weapons[weapon].customparams or {}
+	local wcp = weapons[weapon].customparams
+	
+	unitDef.weapons = unitDef.weapons or {}
+	--unitDef.weapondefs = unitDef.weapondefs or {}
+	
+	if weapons[weapon].weapontype == "Shield" then
+		unitDef.customparams.shield_radius = weapons[weapon].shieldradius
+		unitDef.customparams.shield_power = weapons[weapon].shieldpower
+		unitDef.customparams.shield_rate = (weapons[weapon].customparams or {}).shield_rate or weapons[weapon].shieldpowerregen
+	end
+	
+	unitDef.weapons[slot] = {
+		def = weapon,
+		badtargetcategory = wcp.badtargetcategory or [[FIXEDWING]],
+		onlytargetcategory = wcp.onlytargetcategory or [[FIXEDWING LAND SINK SHIP SWIM FLOAT GUNSHIP HOVER]],
+	}
+	--unitDef.weapondefs[weapon] = CopyTable(weapons[weapon], true)
+
+	-- add CEGs
+	unitDef.sfxtypes = unitDef.sfxtypes or {}
+	unitDef.sfxtypes.explosiongenerators = unitDef.sfxtypes.explosiongenerators or {}
+	
+	unitDef.sfxtypes.explosiongenerators[6 + slot*2] = wcp.muzzleeffectfire or "custom:NONE"
+	unitDef.sfxtypes.explosiongenerators[7 + slot*2] = wcp.muzzleeffectshot or "custom:NONE"
+end
+
 function ApplyWeapon(unitDef, weapon, replace, forceslot)
 	weapons[weapon].customparams = weapons[weapon].customparams or {}
 	local wcp = weapons[weapon].customparams
@@ -31,10 +66,18 @@ function ApplyWeapon(unitDef, weapon, replace, forceslot)
 		slot = altslot
 		dualwield = true
 	end
+	if weapons[weapon].weapontype == "Shield" then
+		unitDef.customparams.shield_radius = weapons[weapon].shieldradius
+		unitDef.customparams.shield_power = weapons[weapon].shieldpower
+		unitDef.customparams.shield_rate = (weapons[weapon].customparams or {}).shield_rate or weapons[weapon].shieldpowerregen
+	end
 	
 	slot = forceslot or slot
 	
 	--Spring.Echo(weapons[weapon].name .. " into slot " .. slot)
+	
+	unitDef.weapons = unitDef.weapons or {}
+	unitDef.weapondefs = unitDef.weapondefs or {}
 	
 	unitDef.weapons[slot] = {
 		def = weapon,
@@ -76,21 +119,6 @@ function ApplyWeapon(unitDef, weapon, replace, forceslot)
 end
 
 function RemoveWeapons(unitDef) 
--- because for some reason comms have a default weapon with no purpose and I don't want to screw with that
-	if unitDef.weapons then
-		for i=3,6 do
-			if unitDef.weapons[i] then
-				unitDef.weapons[i] = nil
-			end
-		end
-	end
-	
-	-- give unarmed comms a peashooter or two
-	ApplyWeapon(unitDef, "commweapon_peashooter", true, 5)
-	if ((tonumber(unitDef.customparams.level) or 0) >= 3) then
-		ApplyWeapon(unitDef, "commweapon_peashooter", true, 3)
-	end
-	--unitDef.customparams.alreadyhasweapon = nil
 end
 
 function ReplaceWeapon(unitDef, oldWeapon, newWeapon)
@@ -117,14 +145,24 @@ function ModifyWeaponRange(unitDef, factor, includeCustomParams)
 end
 
 function ModifyWeaponDamage(unitDef, factor, includeCustomParams)
-	local weapons = unitDef.weapondefs or {}
-	for i,v in pairs(weapons) do
-		local mod = factor
-		if includeCustomParams and v.customparams then
-			mod = mod + (v.customparams.damagemod or 0)
+	if unitDef.customparams.dynamic_comm then
+		-- Change the name of the used weapon.
+		local damageMod = (unitDef.customparams.damagemod or 0)
+		for i,v in pairs(unitDef.weapons) do
+			v.name = damageMod .. "_" .. v.def
+			v.def = nil
 		end
-		for armorname, dmg in pairs(v.damage) do
-			v.damage[armorname] = dmg + dmg * mod
+	else
+		-- Modify weapons which are included in unitdef
+		local weapons = unitDef.weapondefs or {}
+		for i,v in pairs(weapons) do
+			local mod = factor
+			if includeCustomParams and v.customparams then
+				mod = mod + (v.customparams.damagemod or 0)
+			end
+			for armorname, dmg in pairs(v.damage) do
+				v.damage[armorname] = dmg + dmg * mod
+			end
 		end
 	end
 end

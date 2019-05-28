@@ -13,7 +13,7 @@ end
 local TESTMODE = false
 local testOnce = true
 
-if tobool(Spring.GetModOptions().noceasefire) or Spring.FixedAllies() then
+if Spring.FixedAllies() then
 	return
 end
 
@@ -50,23 +50,7 @@ local gaiaAlliance, gaiaTeam
 include("LuaRules/Configs/customcmds.h.lua")
 
 local nukeDefs = {}
-local nukeNames = { 'corsilo', }
-
--------------------------------------------------------------------------------------
--------------------------------------------------------------------------------------
-
-
-local function explode(div,str)
-  if (div=='') then return false end
-  local pos,arr = 0,{}
-  -- for each divider found
-  for st,sp in function() return string.find(str,div,pos,true) end do
-    table.insert(arr,string.sub(str,pos,st-1)) -- Attach chars left of current divider
-    pos = sp + 1 -- Jump past current divider
-  end
-  table.insert(arr,string.sub(str,pos)) -- Attach chars right of last divider
-  return arr
-end
+local nukeNames = { 'staticnuke', }
 
 -------------------------------------------------------------------------------------
 -------------------------------------------------------------------------------------
@@ -155,7 +139,7 @@ function checkAllianceSizes()
 		local teamList = spGetTeamList(alliance)
 		local livingTeam = false
 		for _,teamID in ipairs(teamList) do
-			local teamNum, leader, isDead = spGetTeamInfo(teamID)
+			local teamNum, leader, isDead = spGetTeamInfo(teamID, false)
 			if not isDead then livingTeam = true end
 		end
 		if not livingTeam then
@@ -224,11 +208,11 @@ end
 
 function gadget:RecvLuaMsg(msg, playerID)
 	--echo('recv',msg, playerID)
-	local msg_table = explode(':', msg)
+	local msg_table = Spring.Utilities.ExplodeString(':', msg)
 	if msg_table[1] ~= 'ceasefire' then
 		return
 	end
-	local _,_,isSpec,teamID, allianceID = spGetPlayerInfo(playerID)
+	local _,_,isSpec,teamID, allianceID = spGetPlayerInfo(playerID, false)
 	if isSpec then
 		return
 	end
@@ -258,7 +242,7 @@ function gadget:Initialize()
 	Spring.SetGameRulesParam('cf', 1)
 	
 	gaiaTeam = Spring.GetGaiaTeamID()
-	_,_,_,_,_, gaiaAlliance = spGetTeamInfo(gaiaTeam)
+	_,_,_,_,_, gaiaAlliance = spGetTeamInfo(gaiaTeam, false)
 	
 	local allianceList = spGetAllyTeamList()
 	local enAllianceList = spGetAllyTeamList()
@@ -369,10 +353,10 @@ function gadget:Initialize()
 	gadgetHandler:AddSyncAction('ceasefire', ceasefire)
 	local teamList = Spring.GetTeamList()
 	for _,teamID in ipairs(teamList) do
-		local _, leaderPlayerID = Spring.GetTeamInfo(teamID)
+		local _, leaderPlayerID = Spring.GetTeamInfo(teamID, false)
 		if leaderPlayerID and leaderPlayerID ~= -1 then
 			
-			teamNames[teamID] = Spring.GetPlayerInfo(leaderPlayerID) or '?? Rob P. ??'
+			teamNames[teamID] = Spring.GetPlayerInfo(leaderPlayerID, false) or '?? Rob P. ??'
 		end
 	end
 end

@@ -8,7 +8,7 @@ function widget:GetInfo()
     author    = "Pako",
     date      = "2010.10.27 - 2011.10.29", --YYYY.MM.DD, created - updated
     license   = "GPL",
-    layer     = 0,
+    layer     = 3,
     enabled   = true,
     --detailsDefault = 3
   }
@@ -42,15 +42,19 @@ local ubrightness
 local island = nil -- Later it will be checked and set to true of false
 local drawingEnabled = true
 
+local SPACE_CLICK_OUTSIDE = false
+
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
 
 local function ResetWidget()
 	if dList and not drawingEnabled then
 		gl.DeleteList(dList)
+		dList = nil
 	end
 	if mirrorShader and not drawingEnabled then
 		gl.DeleteShader(mirrorShader)
+		mirrorShader = nil
 	end
 	widget:Initialize()
 end
@@ -64,23 +68,25 @@ options = {
 		type='radioButton', 
 		name='Exterior Effect',
 		items = {
-			{name = 'Texture',  key = 'texture', desc = "Mirror the heightmap and texture.",              hotkey=nil},
-			{name = 'Grid',     key = 'grid',    desc = "Mirror the heightmap with grid texture.",        hotkey=nil},
-			{name = 'Cutaway',  key = 'cutaway', desc = "Draw the edge of the map with a cutaway effect", hotkey=nil},
-			{name = 'Disable',  key = 'disable', desc = "Draw no edge extension",                         hotkey=nil},
+			{name = 'Texture',  key = 'texture', desc = "Mirror the heightmap and texture.",              hotkey = nil},
+			{name = 'Grid',     key = 'grid',    desc = "Mirror the heightmap with grid texture.",        hotkey = nil},
+			{name = 'Cutaway',  key = 'cutaway', desc = "Draw the edge of the map with a cutaway effect", hotkey = nil},
+			{name = 'Disable',  key = 'disable', desc = "Draw no edge extension",                         hotkey = nil},
 		},
 		value = 'grid',  --default at start of widget is to be disabled!
 		OnChange = function(self)
-			Spring.SendCommands("mapborder " .. ((self.value == 'cutaway') and "1" or "0"))
+			Spring.SendCommands("mapborder " .. ((self.value == 'cutaway' or self.value == 'texture') and "1" or "0"))
 			drawingEnabled = (self.value == "texture") or (self.value == "grid") 
 			ResetWidget()
 		end,
+		noHotkey = true,
 	},
 	drawForIslands = {
 		name = "Draw for islands",
 		type = 'bool',
-		value = true,
+		value = false,
 		desc = "Draws mirror map when map is an island",		
+		noHotkey = true,
 	},
 	useShader = {
 		name = "Use shader",
@@ -89,6 +95,7 @@ options = {
 		advanced = true,
 		desc = 'Use a shader when mirroring the map',
 		OnChange = ResetWidget,
+		noHotkey = true,
 	},
 	gridSize = {
 		name = "Heightmap tile size",
@@ -117,6 +124,7 @@ options = {
 		value = false,
 		desc = 'Blurs the edges of the map slightly to distinguish it from the extension.',
 		OnChange = ResetWidget,
+		noHotkey = true,
 	},
 	curvature = {
 		name = "Curvature Effect",
@@ -124,6 +132,7 @@ options = {
 		value = false,
 		desc = 'Add a curvature to the extension.',
 		OnChange = ResetWidget,
+		noHotkey = true,
 	},
 	
 }
@@ -162,38 +171,39 @@ local function SetupShaderTable()
 		void main()
 		{
 		gl_TexCoord[0]= gl_TextureMatrix[0]*gl_MultiTexCoord0;
-		gl_Vertex.x = abs(mirrorX-gl_Vertex.x);
-		gl_Vertex.z = abs(mirrorZ-gl_Vertex.z);
+		vec4 mirrorVertex = gl_Vertex;
+		mirrorVertex.x = abs(mirrorX-mirrorVertex.x);
+		mirrorVertex.z = abs(mirrorZ-mirrorVertex.z);
 		
 		float alpha = 1.0;
 		#ifdef curvature
-		  if(mirrorX)gl_Vertex.y -= pow(abs(gl_Vertex.x-left*mirrorX)/150.0, 2.0);
-		  if(mirrorZ)gl_Vertex.y -= pow(abs(gl_Vertex.z-up*mirrorZ)/150.0, 2.0);
+		  if(mirrorX != 0.0)mirrorVertex.y -= pow(abs(mirrorVertex.x-left*mirrorX)/150.0, 2.0);
+		  if(mirrorZ != 0.0)mirrorVertex.y -= pow(abs(mirrorVertex.z-up*mirrorZ)/150.0, 2.0);
 		  alpha = 0.0;
-			if(mirrorX) alpha -= pow(abs(gl_Vertex.x-left*mirrorX)/lengthX, 2.0);
-			if(mirrorZ) alpha -= pow(abs(gl_Vertex.z-up*mirrorZ)/lengthZ, 2.0);
+			if(mirrorX != 0.0) alpha -= pow(abs(mirrorVertex.x-left*mirrorX)/lengthX, 2.0);
+			if(mirrorZ != 0.0) alpha -= pow(abs(mirrorVertex.z-up*mirrorZ)/lengthZ, 2.0);
 			alpha = 1.0 + (6.0 * (alpha + 0.18));
 		#endif
   
 		float ff = 20000.0;
-		if((mirrorZ && mirrorX))
-		  ff=ff/(pow(abs(gl_Vertex.z-up*mirrorZ)/150.0, 2.0)+pow(abs(gl_Vertex.x-left*mirrorX)/150.0, 2.0)+2.0);
-		else if(mirrorX)
-		  ff=ff/(pow(abs(gl_Vertex.x-left*mirrorX)/150.0, 2.0)+2.0);
-		else if(mirrorZ)
-		  ff=ff/(pow(abs(gl_Vertex.z-up*mirrorZ)/150.0, 2.0)+2.0);
+		if((mirrorZ != 0.0 && mirrorX != 0.0))
+		  ff=ff/(pow(abs(mirrorVertex.z-up*mirrorZ)/150.0, 2.0)+pow(abs(mirrorVertex.x-left*mirrorX)/150.0, 2.0)+2.0);
+		else if(mirrorX != 0.0)
+		  ff=ff/(pow(abs(mirrorVertex.x-left*mirrorX)/150.0, 2.0)+2.0);
+		else if(mirrorZ != 0.0)
+		  ff=ff/(pow(abs(mirrorVertex.z-up*mirrorZ)/150.0, 2.0)+2.0);
   
-		gl_Position  = gl_ModelViewProjectionMatrix*gl_Vertex;
+		gl_Position  = gl_ModelViewProjectionMatrix*mirrorVertex;
 		//gl_Position.z+ff;
 		
 		#ifdef edgeFog
-		  gl_FogFragCoord = length((gl_ModelViewMatrix * gl_Vertex).xyz)+ff; //see how Spring shaders do the fog and copy from there to fix this
+		  gl_FogFragCoord = length((gl_ModelViewMatrix * mirrorVertex).xyz)+ff; //see how Spring shaders do the fog and copy from there to fix this
 		#endif
 		
 		gl_FrontColor = vec4(brightness * gl_Color.rgb, alpha);
 
 		color = gl_FrontColor;
-		vertex = gl_Vertex;
+		vertex = mirrorVertex;
 		}
 	  ]],
 	 --  fragment = [[
@@ -334,25 +344,31 @@ local function DrawOMap(useMirrorShader)
 	----draw map compass text
 	gl.PushAttrib(GL.ALL_ATTRIB_BITS)
 	gl.Texture(false)
-	gl.DepthMask(false)
+	-- gl.DepthMask(false)
 	gl.DepthTest(false)
 	gl.Color(1,1,1,1)
 	gl.PopAttrib()
 	----	
 end
 
-function widget:Initialize()
+local function Initialize()
 	
 	if not drawingEnabled then
 		return
 	end
 	
-	
-	Spring.SendCommands("mapborder " .. ((options and (options.mapBorderStyle.value == 'cutaway')) and "1" or "0"))
-	
 	if island == nil then
 		island = IsIsland()
 	end
+	
+	local enableMapBorder = false
+	if island and not options.drawForIslands.value then
+		enableMapBorder = false
+	elseif options and (options.mapBorderStyle.value == 'cutaway' or options.mapBorderStyle.value == 'texture') then
+		enableMapBorder = true
+	end
+	
+	Spring.SendCommands("mapborder " .. ((enableMapBorder and "1") or "0"))
 
 	SetupShaderTable()
 	Spring.SendCommands("luaui disablewidget External VR Grid")
@@ -364,10 +380,11 @@ function widget:Initialize()
 	end
 	if not mirrorShader then
 		widget.DrawWorldPreUnit = function()
-			if (not island) or options.drawForIslands.value then
+			if dList and ((not island) or options.drawForIslands.value) then
 				gl.DepthMask(true)
 				--gl.Texture(tex)
 				gl.CallList(dList)
+				gl.DepthMask(false)
 				gl.Texture(false)
 			end
 		end
@@ -383,7 +400,21 @@ function widget:Initialize()
 	end
 	dList = gl.CreateList(DrawOMap, mirrorShader)
 	--Spring.SetDrawGround(false)
+
+	widgetHandler:RemoveCallIn("Update")
 end
+
+function widget:Initialize()
+	if Spring.GetGameRulesParam("waterLevelModifier") then
+		return
+	end
+	Initialize()
+end
+
+function widget:Update()
+	Initialize()
+end
+
 
 function widget:Shutdown()
 	--Spring.SetDrawGround(true)
@@ -394,12 +425,11 @@ function widget:Shutdown()
 end
 
 local function DrawWorldFunc() --is overwritten when not using the shader
-    if (not island) or options.drawForIslands.value then
+    if dList and ((not island) or options.drawForIslands.value) then
         local glTranslate = gl.Translate
         local glUniform = gl.Uniform
         local GamemapSizeZ, GamemapSizeX = Game.mapSizeZ,Game.mapSizeX
         
-        gl.Fog(true)
         gl.FogCoord(1)
         gl.UseShader(mirrorShader)
         gl.PushMatrix()
@@ -458,7 +488,7 @@ local function DrawWorldFunc() --is overwritten when not using the shader
         gl.PopMatrix()
         gl.UseShader(0)
         
-        gl.Fog(false)
+        gl.FogCoord(0)
     end
 end
 
@@ -473,14 +503,16 @@ function widget:DrawWorldRefraction()
 	end
 end
 
-function widget:MousePress(x, y, button)
-	local _, mpos = spTraceScreenRay(x, y, true) --//convert UI coordinate into ground coordinate.
-	if mpos==nil then --//activate epic menu if mouse position is outside the map
-		local _, _, meta, _ = Spring.GetModKeyState()
-		if meta then  --//show epicMenu when user also press the Spacebar
-			WG.crude.OpenPath(options_path) --click + space will shortcut to option-menu
-			WG.crude.ShowMenu() --make epic Chili menu appear.
-			return false
+if SPACE_CLICK_OUTSIDE then
+	function widget:MousePress(x, y, button)
+		local _, mpos = spTraceScreenRay(x, y, true) --//convert UI coordinate into ground coordinate.
+		if mpos == nil then --//activate epic menu if mouse position is outside the map
+			local _, _, meta, _ = Spring.GetModKeyState()
+			if meta then  --//show epicMenu when user also press the Spacebar
+				WG.crude.OpenPath(options_path) --click + space will shortcut to option-menu
+				WG.crude.ShowMenu() --make epic Chili menu appear.
+				return false
+			end
 		end
 	end
 end

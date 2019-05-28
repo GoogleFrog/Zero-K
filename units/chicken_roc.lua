@@ -3,15 +3,14 @@ unitDef = {
   name                = [[Roc]],
   description         = [[Heavy Attack Flyer]],
   acceleration        = 1.2,
+  activateWhenBuilt   = true,
   airHoverFactor      = 0,
-  amphibious          = true,
-  brakeRate           = 1,
+  brakeRate           = 0.8,
   buildCostEnergy     = 0,
   buildCostMetal      = 0,
   builder             = false,
   buildPic            = [[chicken_roc.png]],
   buildTime           = 1250,
-  canAttack           = true,
   canFly              = true,
   canGuard            = true,
   canLand             = true,
@@ -23,9 +22,6 @@ unitDef = {
   cruiseAlt           = 150,
 
   customParams        = {
-    description_pl = [[Ciezki kurczak powietrzny]],
-    helptext       = [[Large, angry and capable of fighting both air and land opposition, the Roc is a formidable flying chicken.]],
-    helptext_pl    = [[Roc to latajacy kurczak, ktory jest w stanie skutecznie zwalczac zarowno cele ladowe, jak i powietrzne.]],
   },
 
   explodeAs           = [[NOWEAPON]],
@@ -38,20 +34,16 @@ unitDef = {
   idleTime            = 1800,
   leaveTracks         = true,
   maneuverleashlength = [[64000]],
-  mass                = 600,
   maxDamage           = 2500,
   maxSlope			  = 36,
   maxVelocity         = 3,
   minCloakDistance    = 250,
-  moverate1           = [[32]],
   noAutoFire          = false,
   noChaseCategory     = [[TERRAFORM FIXEDWING SATELLITE GUNSHIP STUPIDTARGET MINE]],
   objectName          = [[chicken_roc.s3o]],
   power               = 1250,
   script              = [[chicken_roc.lua]],
-  seismicSignature    = 0,
   selfDestructAs      = [[NOWEAPON]],
-  separation          = [[0.2]],
 
   sfxtypes            = {
 
@@ -62,10 +54,8 @@ unitDef = {
     },
 
   },
-
-  side                = [[THUNDERBIRDS]],
   sightDistance       = 750,
-  smoothAnim          = true,
+  sonarDistance       = 750,
   turnRate            = 1350,
   workerTime          = 0,
 
@@ -103,14 +93,15 @@ unitDef = {
       burstrate               = 0.01,
       craterBoost             = 0,
       craterMult              = 0,
+			
+			customParams            = {
+        light_radius = 0,
+      },
 
       damage                  = {
         default = 200,
-        planes  = 200,
-        subs    = 1,
       },
 
-      endsmoke                = [[0]],
       explosionGenerator      = [[custom:green_goo]],
       impulseBoost            = 0,
       impulseFactor           = 0.4,
@@ -119,18 +110,16 @@ unitDef = {
       proximityPriority       = -4,
       range                   = 500,
       reloadtime              = 8,
-      renderType              = 4,
       rgbColor                = [[0.2 0.6 0]],
       size                    = 8,
       sizeDecay               = 0,
       soundHit                = [[chickens/acid_hit]],
       soundStart              = [[chickens/acid_fire]],
       sprayAngle              = 1200,
-      startsmoke              = [[0]],
       tolerance               = 5000,
       turret                  = true,
-      weaponTimer             = 0.2,
       weaponType              = [[Cannon]],
+      waterweapon             = true,
       weaponVelocity          = 350,
     },
 
@@ -144,7 +133,11 @@ unitDef = {
       collideFriendly         = false,
       craterBoost             = 0,
       craterMult              = 0,
-
+      
+      customParams            = {
+        light_radius = 0,
+      },
+      
       damage                  = {
         default = 80,
         planes  = 80,
@@ -166,10 +159,7 @@ unitDef = {
       model                   = [[chickeneggblue.s3o]],
       range                   = 500,
       reloadtime              = 5,
-      selfprop                = true,
-      smokedelay              = [[0.1]],
       smokeTrail              = true,
-      startsmoke              = [[1]],
       startVelocity           = 100,
       texture1                = [[]],
       texture2                = [[sporetrailblue]],
@@ -177,7 +167,7 @@ unitDef = {
       tracks                  = true,
       turnRate                = 24000,
       turret                  = true,
-      waterweapon             = true,
+      waterWeapon             = true,
       weaponAcceleration      = 100,
       weaponType              = [[MissileLauncher]],
       weaponVelocity          = 500,

@@ -73,12 +73,12 @@ local function IsCoreOrChicken(a)
 	if a then return a.chicken
 	else return false end
 end
+local function IsHover(a)
+	return a and a.name and string.find(a.name, "hover") ~= nil
+end
 backgrounds = {
---//chicken queen has air movementtype
-  {check={name="chickenq"},                                  texture="LuaRules/Images/IconGenBkgs/bg_ground_rock.png"},
-
 --// stuff that needs hardcoding
-  {check={name="reef"}, texture="LuaRules/Images/IconGenBkgs/bg_water.png"},
+  {check={name="shipcarrier"}, texture="LuaRules/Images/IconGenBkgs/bg_water.png"},
 
   
 --[[terraforms
@@ -93,12 +93,8 @@ backgrounds = {
 --//air
   {check={canFly=true},                                      texture="LuaRules/Images/IconGenBkgs/bg_air.png"},
 --//hovers
-  {check={factions=IsCoreOrChicken,canHover=true},                                    texture="LuaRules/Images/IconGenBkgs/bg_hover_rock.png"},
-  {check={factions=IsCoreOrChicken,floatOnWater=true,minWaterDepth=LessEqZero},            texture="LuaRules/Images/IconGenBkgs/bg_hover_rock.png"},
-  {check={factions=IsCoreOrChicken,waterline=GreaterZero,minWaterDepth=LessEqZero},   texture="LuaRules/Images/IconGenBkgs/bg_hover_rock.png"},
-  --{check={canHover=true},                                    texture="LuaRules/Images/IconGenBkgs/bg_hover.png"},
-  {check={floatOnWater=true,minWaterDepth=LessEqZero},            texture="LuaRules/Images/IconGenBkgs/bg_hover.png"},
-  {check={waterline=GreaterZero,minWaterDepth=LessEqZero},   texture="LuaRules/Images/IconGenBkgs/bg_hover.png"},
+  {check={factions=IsCoreOrChicken,moveDef=IsHover},            texture="LuaRules/Images/IconGenBkgs/bg_hover_rock.png"},
+  {check={moveDef=IsHover},            texture="LuaRules/Images/IconGenBkgs/bg_hover.png"},
 --//subs
   {check={waterline=GreaterEq15,minWaterDepth=GreaterZero},  texture="LuaRules/Images/IconGenBkgs/bg_underwater.png"},
   {check={floatOnWater=false,minWaterDepth=GreaterFour},          texture="LuaRules/Images/IconGenBkgs/bg_underwater.png"},
@@ -141,112 +137,112 @@ defaults = {border=0.05, angle=45, rot="right", clamp=-10000, scale=1.5, empty=f
 --// per unitdef settings
 unitConfigs = {
   
-  [UnitDefNames.corrad.id] = {
+  [UnitDefNames.staticradar.id] = {
     scale = 3,
     rot   = 200,
     clamp = 10,
   },
-  [UnitDefNames.armjamt.id] = {
+  [UnitDefNames.staticjammer.id] = {
     rot = -45,
   },
-  [UnitDefNames.corsilo.id] = {
+  [UnitDefNames.staticnuke.id] = {
     clamp = 0,
   },
-  [UnitDefNames.corsh.id] = {
+  [UnitDefNames.hoverraid.id] = {
     clamp = 0,
   },
-  [UnitDefNames.corrl.id] = {
+  [UnitDefNames.turretmissile.id] = {
     clamp = 2,
   },
-  [UnitDefNames.corhlt.id] = {
+  [UnitDefNames.turretheavylaser.id] = {
     clamp = 2,
   },
-  [UnitDefNames.corfav.id] = {
+  [UnitDefNames.vehscout.id] = {
     border = 0.156,
   },
-  [UnitDefNames.blastwing.id] = {
+  [UnitDefNames.gunshipbomb.id] = {
     border = 0.156,
   },
-  [UnitDefNames.bladew.id] = {
+  [UnitDefNames.gunshipemp.id] = {
     border = 0.125,
   },
-  [UnitDefNames.corgator.id] = {
+  [UnitDefNames.vehraid.id] = {
     border = 0.125,
   },
-  [UnitDefNames.armflea.id] = {
+  [UnitDefNames.spiderscout.id] = {
     border = 0.125,
   },
 
 
-  [UnitDefNames.corsumo.id] = {
+  [UnitDefNames.jumpsumo.id] = {
     unfold = true,
   },
-  [UnitDefNames.corpyro.id] = {
+  [UnitDefNames.jumpraid.id] = {
     unfold = true,
   },
-  [UnitDefNames.corstorm.id] = {
+  [UnitDefNames.shieldskirm.id] = {
     unfold = true,
   },
-  [UnitDefNames.core_spectre.id] = {
+  [UnitDefNames.shieldshield.id] = {
     unfold = true,
   },
-  [UnitDefNames.corjamt.id] = {
+  [UnitDefNames.staticshield.id] = {
     unfold = true,
   },
   	
-  [UnitDefNames.cormart.id] = {
+  [UnitDefNames.tankarty.id] = {
     unfold = true,
     attack = true,
     shotangle = 45,
     wait   = 120,
   },
-  [UnitDefNames.corak.id] = {
+  [UnitDefNames.shieldraid.id] = {
     unfold = true,
     attack = true,
     wait   = 120,
    },  
-  [UnitDefNames.armpb.id] = {
+  [UnitDefNames.turretgauss.id] = {
     unfold = true,
     attack = true,
     wait   = 50,
   },
-  [UnitDefNames.armspy.id] = {
+  [UnitDefNames.spiderantiheavy.id] = {
     unfold = true,
   },
-  [UnitDefNames.armanni.id] = {
+  [UnitDefNames.turretantiheavy.id] = {
     unfold = true,
   },
-  [UnitDefNames.armarad.id] = {
+  [UnitDefNames.staticheavyradar.id] = {
     unfold = true,
     wait   = 225,
   },
-  [UnitDefNames.armsolar.id] = {
+  [UnitDefNames.energysolar.id] = {
     unfold = true,
   },
-  [UnitDefNames.armsnipe.id] = {
+  [UnitDefNames.cloaksnipe.id] = {
 --    unfold = true,
 --    attack = true,
   },
-  [UnitDefNames.armzeus.id] = {
+  [UnitDefNames.cloakassault.id] = {
     unfold = true,
     attack = true,
   },
   [UnitDefNames.hoverdepthcharge.id] = {
     unfold = true,
   },
-  [UnitDefNames.spherecloaker.id] = {
+  [UnitDefNames.cloakjammer.id] = {
     unfold = true,
     wait   = 100,
   },
-  [UnitDefNames.cormex.id] = {
+  [UnitDefNames.staticmex.id] = {
     clamp  = 0,
     unfold = true,
     wait   = 600,
   },
-  [UnitDefNames.cordoom.id] = {
+  [UnitDefNames.turretheavy.id] = {
     unfold = true,
   },
-  [UnitDefNames.corcrw.id] = {
+  [UnitDefNames.gunshipkrow.id] = {
     unfold = true,
   },
   [UnitDefNames.chickenf.id] = {
@@ -261,31 +257,21 @@ unitConfigs = {
     border = defaults.border,
   }, 
 
-  [UnitDefNames.chickenq.id] = {
-    rot    = 29,
-    angle  = 10,
-    unfold = false,
-  },
   [UnitDefNames.chickenbroodqueen.id] = {
     rot    = 29,
     angle  = 10,
     unfold = false,
   },
-  [UnitDefNames.armorco.id] = {
+  [UnitDefNames.striderdetriment.id] = {
     rot    = 20,
     angle  = 10,
   },
-  [UnitDefNames.armbanth.id] = {
+  [UnitDefNames.striderbantha.id] = {
     rot    = 28,
     angle  = 10,
     unfold = true,
   },
-  [UnitDefNames.armraz.id] = {
-    rot    = 28,
-    angle  = 10,
-    border = 0.09,
-  },
-  [UnitDefNames.dante.id] = {
+  [UnitDefNames.striderdante.id] = {
     rot    = 28,
     angle  = 10,
   },
@@ -293,14 +279,17 @@ unitConfigs = {
     rot    = 28,
     angle  = 10,
   },  
-  [UnitDefNames.screamer.id] = {
+  [UnitDefNames.turretaaheavy.id] = {
     rot    = 30,
     angle  = 30,
   },
   [UnitDefNames.spiderassault.id] = {
     unfold = true,
   },  
-  [UnitDefNames.arm_spider.id] = {
+  [UnitDefNames.amphlaunch.id] = {
+    unfold = true,
+  },  
+  [UnitDefNames.spidercon.id] = {
     scale    = 3,
     attempts = 10,
   },
@@ -328,7 +317,7 @@ unitConfigs = {
     unfold  = true,
     wait = 60,
   },
-  [UnitDefNames.corch.id] = {
+  [UnitDefNames.hovercon.id] = {
     unfold  = true,
     wait = 60,
   },

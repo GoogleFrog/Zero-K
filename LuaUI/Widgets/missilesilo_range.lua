@@ -14,7 +14,17 @@ end
 ----------------------------
 -- Config
 
-local radiusCount = 5
+options_path = 'Settings/Interface/Building Placement'
+options_order = { 'missile_silo_advanced'}
+options = {
+	missile_silo_advanced = {
+		name = "Advanced Missile Silo ranges",
+		type = 'bool',
+		value = false,
+		noHotkey = true,
+		desc = 'When placing a Missile Silo, show at what range the missiles will fall vertically, ie. are unblockable by terrain geometry and walls. Also, show how far away from the nominal range you can reach through AoE.',
+	},
+}
 
 local drawRadius = {}
 
@@ -29,15 +39,6 @@ drawRadius[1] = {
 	}
 
 drawRadius[2] = {
-	range = 3675,
-	color = {0.2,0.2,1,1},
-	text = "EMP AOE",
-	width = 1,
-	miniWidth = 1,
-	textSize = 180,
-	}	
-	
-drawRadius[3] = {
 	range = 6000,
 	color = {0.4,1,0.2,1},
 	text = "Seismic",
@@ -45,6 +46,15 @@ drawRadius[3] = {
 	miniWidth = 1,
 	textSize = 260,
 	}
+
+drawRadius[3] = {
+	range = 3675,
+	color = {0.2,0.2,1,1},
+	text = "EMP AOE",
+	width = 1,
+	miniWidth = 1,
+	textSize = 180,
+}	
 	
 drawRadius[4] = {
 	range = 1500,
@@ -77,7 +87,7 @@ local spTraceScreenRay		= Spring.TraceScreenRay
 local spGetGroundHeight		= Spring.GetGroundHeight
 local spGetCameraState 		= Spring.GetCameraState
 
-local siloDefID = -UnitDefNames["missilesilo"].id
+local siloDefID = -UnitDefNames["staticmissilesilo"].id
 
 local floor = math.floor
 local cos = math.cos
@@ -89,6 +99,7 @@ local glColor               = gl.Color
 local glLineWidth           = gl.LineWidth
 local glDepthTest           = gl.DepthTest
 local glTexture             = gl.Texture
+local glDrawCircle          = gl.Utilities.DrawCircle
 local glDrawGroundCircle    = gl.DrawGroundCircle
 local glPopMatrix           = gl.PopMatrix
 local glPushMatrix          = gl.PushMatrix
@@ -99,6 +110,8 @@ local glScale				= gl.Scale
 local glRotate				= gl.Rotate
 local glLoadIdentity		= gl.LoadIdentity
 local glLineStipple			= gl.LineStipple
+
+local mouseX, mouseZ
 
 ----------------------------
 
@@ -112,15 +125,15 @@ local function DrawActiveCommandRanges()
 	
 	local mx, my = spGetMouseState()
 	local _, mouse = spTraceScreenRay(mx, my, true, true)
-			
+	
 	if not mouse then
 		return
 	end
 	
-	mouse[1] = floor((mouse[1]+8)/16)*16
-	mouse[3] = floor((mouse[3]+8)/16)*16
+	mouseX = floor((mouse[1]+8)/16)*16
+	mouseZ = floor((mouse[3]+8)/16)*16
 	
-	local height = spGetGroundHeight(mouse[1],mouse[3])
+	local height = spGetGroundHeight(mouseX, mouseZ)
 	
 	--handle COFC rotation
 	local cs = spGetCameraState()
@@ -131,7 +144,7 @@ local function DrawActiveCommandRanges()
 		dz = sin(rotY)
 	end
 	
-	for i = 1, radiusCount do
+	for i = 1, (options.missile_silo_advanced.value and 5 or 2) do
 		local radius = drawRadius[i]
 		
 		glLineWidth(radius.width)
@@ -142,10 +155,10 @@ local function DrawActiveCommandRanges()
 			glLineStipple(false)
 		end
 		
-		glDrawGroundCircle(mouse[1], 0, mouse[3], radius.range, circleDivs )
+		glDrawGroundCircle(mouseX, 0, mouseZ, radius.range, circleDivs )
 		
 		glPushMatrix()
-		glTranslate(mouse[1] + radius.range*dx,  height ,mouse[3]-(radius.range*dz)-5 )
+		glTranslate(mouseX + radius.range*dx,  height, mouseZ - (radius.range*dz)-5)
 		glBillboard()
 		glText( radius.text, 0, 0, radius.textSize, "cn")
 		glPopMatrix()  
@@ -158,7 +171,7 @@ local function DrawActiveCommandRanges()
 	
 end
 
-local function DrawActiveCommandRangesMinimap()
+local function DrawActiveCommandRangesMinimap(minimapX, minimapY)
 
 	local _, cmd_id = spGetActiveCommand()
 	
@@ -166,25 +179,16 @@ local function DrawActiveCommandRangesMinimap()
 		return
 	end
 	
-	local mx, my = spGetMouseState()
-	local _, mouse = spTraceScreenRay(mx, my, true, true)
-			
-	if not mouse then
+	if not mouseX then
 		return
 	end
 	
-	mouse[1] = floor((mouse[1]+8)/16)*16
-	mouse[3] = floor((mouse[3]+8)/16)*16
+	local height = spGetGroundHeight(mouseX,mouseZ)
 	
-	local height = spGetGroundHeight(mouse[1],mouse[3])
+	glTranslate(0,minimapY,0)
+	glScale(minimapX/mapX, -minimapY/mapZ, 1)
 	
-	glPushMatrix()
-	glLoadIdentity()
-	glTranslate(0,1,0)
-	glScale(1/mapX , -1/mapZ, 1)
-	glRotate(270,1,0,0)
-	
-	for i = 1, radiusCount do
+	for i = 1, (options.missile_silo_advanced.value and 5 or 2) do
 		local radius = drawRadius[i]
 		
 		glLineWidth(radius.miniWidth)
@@ -195,24 +199,32 @@ local function DrawActiveCommandRangesMinimap()
 			glLineStipple(false)
 		end
 		
-		glDrawGroundCircle(mouse[1],0, mouse[3], radius.range, circleDivs )
-			
+		glDrawCircle(mouseX, mouseZ, radius.range)
 	end
 	
-	glPopMatrix()
+	--glPopMatrix()
 end
 
-
-
-function widget:DrawInMiniMap()
-
-	DrawActiveCommandRangesMinimap()
-
+function widget:DrawInMiniMap(minimapX, minimapY)
+	DrawActiveCommandRangesMinimap(minimapX, minimapY)
 end
 
-	
 function widget:DrawWorld()
-	
 	DrawActiveCommandRanges()
-	
+end
+
+local function languageChanged ()
+	drawRadius[1].text = WG.Translate("interface", "tacnuke_and_emp")
+	drawRadius[2].text = WG.Translate("interface", "seismic")
+	drawRadius[3].text = WG.Translate("interface", "emp_aoe")
+	drawRadius[4].text = WG.Translate("interface", "emp_vertical")
+	drawRadius[5].text = WG.Translate("interface", "tacnuke_vertical")
+end
+
+function widget:Initialize()
+	WG.InitializeTranslation (languageChanged, GetInfo().name)
+end
+
+function widget:Shutdown()
+	WG.ShutdownTranslation(GetInfo().name)
 end

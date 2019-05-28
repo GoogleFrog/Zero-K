@@ -14,6 +14,8 @@ function widget:GetInfo()
   }
 end
 
+include("Widgets/COFCTools/ExportUtilities.lua")
+VFS.Include("LuaRules/Configs/customcmds.h.lua")
 
 -------------------------------------------------------------------------------
 -------------------------------------------------------------------------------
@@ -72,6 +74,7 @@ options = {
 -------------------------------------------------------------------------------
 -------------------------------------------------------------------------------
 
+local EMPTY_TABLE = {}
 
 -- list and interface vars
 local facs = {}
@@ -99,14 +102,7 @@ local sound_queue_rem = LUAUI_DIRNAME .. 'Sounds/buildbar_rem.wav'
 
 local image_repeat    = LUAUI_DIRNAME .. 'Images/repeat.png'
 
-local teamColors = {}
-local GetTeamColor = Spring.GetTeamColor or function (teamID)
-  local color = teamColors[teamID]
-  if (color) then return unpack(color) end
-  local _,_,_,_,_,_,r,g,b = Spring.GetTeamInfo(teamID)
-  teamColors[teamID] = {r,g,b}
-  return r,g,b
-end
+local GetTeamColor = Spring.GetTeamColor
 
 -------------------------------------------------------------------------------
 -- SCREENSIZE FUNCTIONS
@@ -253,9 +249,9 @@ local function AddFacButton(unitID, unitDefID, tocontrol, stackname)
 		Button:New{
 			width = options.buttonsize.value*1.2,
 			height = options.buttonsize.value*1.0,
-			tooltip = 			'Click - ' 			.. GreenStr .. 'Select \n' 					
-				.. WhiteStr .. 	'Middle click - ' 	.. GreenStr .. 'Go to \n'
-				.. WhiteStr .. 	'Right click - ' 	.. GreenStr .. 'Quick Rallypoint Mode' 
+			tooltip = 			WG.Translate("interface", "lmb") .. ' - ' .. GreenStr .. WG.Translate("interface", "select") .. '\n' 					
+				.. WhiteStr .. 	WG.Translate("interface", "mmb") .. ' - ' .. GreenStr .. WG.Translate("interface", "go_to") .. '\n'
+				.. WhiteStr .. 	WG.Translate("interface", "rmb") .. ' - ' .. GreenStr .. WG.Translate("interface", "quick_rallypoint_mode")
 				,
 			backgroundColor = buttonColor,
 			
@@ -264,7 +260,7 @@ local function AddFacButton(unitID, unitDefID, tocontrol, stackname)
 					function(_,_,_,button)
 						if button == 2 then
 							local x,y,z = Spring.GetUnitPosition(unitID)
-							Spring.SetCameraTarget(x,y,z)
+							SetCameraTarget(x,y,z)
 						elseif button == 3 then
 							Spring.Echo("FactoryBar: Entered easy waypoint mode")
 							Spring.PlaySoundFile(sound_waypoint, 1, 'ui')
@@ -362,17 +358,14 @@ local function MakeButton(unitDefID, facID, facIndex)
 					local lb = button == 1
 					if not (lb or rb) then return end
 					
-					local opt = {}
-					if alt   then push(opt,"alt")   end
-					if ctrl  then push(opt,"ctrl")  end
-					if meta  then push(opt,"meta")  end
-					if shift then push(opt,"shift") end
+					local opt = 0
+					if alt   then opt = opt + CMD.OPT_ALT   end
+					if ctrl  then opt = opt + CMD.OPT_CTRL  end
+					if meta  then opt = opt + CMD.OPT_META  end
+					if shift then opt = opt + CMD.OPT_SHIFT end
+					if rb    then opt = opt + CMD.OPT_RIGHT end
 					
-					if rb then
-						push(opt,"right")
-					end
-					
-					Spring.GiveOrderToUnit(facID, -(unitDefID), {}, opt)
+					Spring.GiveOrderToUnit(facID, -(unitDefID), EMPTY_TABLE, opt)
 					
 					if rb then
 						Spring.PlaySoundFile(sound_queue_rem, 0.97, 'ui')
@@ -433,27 +426,27 @@ end
 local function WaypointHandler(x,y,button)
   if (button==1)or(button>3) then
     Spring.Echo("FactoryBar: Exited easy waypoint mode")
-    Spring.PlaySoundFile(sound_waypoint, 1)
+    Spring.PlaySoundFile(sound_waypoint, 1, 'ui')
     waypointFac  = -1
     waypointMode = 0
     return
   end
 
   local alt, ctrl, meta, shift = Spring.GetModKeyState()
-  local opt = {"right"}
-  if alt   then push(opt,"alt")   end
-  if ctrl  then push(opt,"ctrl")  end
-  if meta  then push(opt,"meta")  end
-  if shift then push(opt,"shift") end
+  local opt = CMD.OPT_RIGHT
+  if alt   then opt = opt + CMD.OPT_ALT   end
+  if ctrl  then opt = opt + CMD.OPT_CTRL  end
+  if meta  then opt = opt + CMD.OPT_META  end
+  if shift then opt = opt + CMD.OPT_SHIFT end
 
   local type,param = Spring.TraceScreenRay(x,y)
   if type=='ground' then
-    Spring.GiveOrderToUnit(facs[waypointFac].unitID, CMD.MOVE,param,opt) 
+    Spring.GiveOrderToUnit(facs[waypointFac].unitID, CMD_RAW_MOVE,param,opt) 
   elseif type=='unit' then
     Spring.GiveOrderToUnit(facs[waypointFac].unitID, CMD.GUARD,{param},opt)     
   else --feature
     type,param = Spring.TraceScreenRay(x,y,true)
-    Spring.GiveOrderToUnit(facs[waypointFac].unitID, CMD.MOVE,param,opt)
+    Spring.GiveOrderToUnit(facs[waypointFac].unitID, CMD_RAW_MOVE,param,opt)
   end
 
   --if not shift then waypointMode = 0; return true end
@@ -672,7 +665,7 @@ function widget:MousePress(x, y, button)
 	end
 	if waypointMode>1 then
 		Spring.Echo("FactoryBar: Exited easy waypoint mode")
-		Spring.PlaySoundFile(sound_waypoint, 1)
+		Spring.PlaySoundFile(sound_waypoint, 1, 'ui')
 	end
 	waypointFac  = -1
 	waypointMode = 0
@@ -726,7 +719,7 @@ function widget:Initialize()
 		minHeight = 56,
 		color = {0,0,0,0},
 		children = {
-			Label:New{ caption='Factories', fontShadow = true, },
+			Label:New{ caption = WG.Translate("interface", "factories"), fontShadow = true, },
 			stack_main,
 		},
 		OnMouseDown={ function(self)

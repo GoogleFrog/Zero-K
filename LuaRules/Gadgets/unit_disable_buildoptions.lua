@@ -28,7 +28,6 @@ end
 local FindUnitCmdDesc = Spring.FindUnitCmdDesc
 local GetUnitPosition = Spring.GetUnitPosition
 local GetGroundHeight = Spring.GetGroundHeight
-local GetUnitPosition = Spring.GetUnitPosition
 local disableWind
 --values: {unitID, reason,}
 local alwaysDisableTable = {}
@@ -68,7 +67,7 @@ function gadget:Initialize()
 	--local windMax = Game.windMax*0.1
 	
 	--if (windMax < breakEvenWind) then
-	--	table.insert(alwaysDisableTable, {UnitDefNames["armwin"].id, "Unit disabled: Wind is too weak on this map.",})
+	--	table.insert(alwaysDisableTable, {UnitDefNames["energywind"].id, "Unit disabled: Wind is too weak on this map.",})
 	--	table.insert(alwaysDisableTable, {UnitDefNames["corwin"].id, "Unit disabled: Wind is too weak on this map.",})
 	--end
 	
